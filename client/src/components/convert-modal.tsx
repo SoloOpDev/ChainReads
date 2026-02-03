@@ -58,7 +58,6 @@ export function ConvertModal({ isOpen, onClose }: ConvertModalProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const hasConfirmed = useRef(false);
-  const { signMessageAsync } = useSignMessage();
 
   // Get wallet address from cached function (prevents MetaMask spam)
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
