@@ -5,8 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Wallet, CheckCircle2, Gift, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import { useSignMessage } from "wagmi";
-import { getCachedAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth";
 
 interface ClaimButtonProps {
   section: "news" | "trading" | "airdrop";
@@ -23,7 +22,6 @@ export function ClaimButton({ section }: ClaimButtonProps) {
   const [claiming, setClaiming] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const { signMessageAsync } = useSignMessage();
 
   // Get wallet address from MetaMask
   useEffect(() => {
@@ -145,8 +143,18 @@ export function ClaimButton({ section }: ClaimButtonProps) {
         throw new Error("Wallet not connected");
       }
 
+      // Simple sign function using window.ethereum
+      const signMessage = async (message: string): Promise<string> => {
+        if (!window.ethereum) throw new Error("No wallet found");
+        const signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [message, walletAddress],
+        });
+        return signature as string;
+      };
+
       // Get authentication headers with signature
-      const authHeaders = await getCachedAuthHeaders(walletAddress, signMessageAsync);
+      const authHeaders = await getAuthHeaders(walletAddress, signMessage);
 
       const res = await fetch("/api/claim-points", {
         method: "POST",

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useSignMessage } from "wagmi";
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
 import { getWalletAddress } from "@/lib/wallet";
 import { getCachedAuthHeaders } from "@/lib/auth";
 
@@ -254,7 +254,17 @@ export function ConvertModal({ isOpen, onClose }: ConvertModalProps) {
         throw new Error('Wallet not connected');
       }
       
-      const authHeaders = await getCachedAuthHeaders(walletAddress, signMessageAsync);
+      // Simple sign function using window.ethereum
+      const signMessage = async (message: string): Promise<string> => {
+        if (!window.ethereum) throw new Error("No wallet found");
+        const signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [message, walletAddress],
+        });
+        return signature as string;
+      };
+      
+      const authHeaders = await getCachedAuthHeaders(walletAddress, signMessage);
 
       // Get signature from backend
       const signResponse = await fetch('/api/exchange/sign', {

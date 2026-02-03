@@ -1,18 +1,16 @@
-import type { SignMessageMutateAsync } from 'wagmi/query';
-
 /**
  * Generate authentication headers with wallet signature
  * Required for all wallet-based API endpoints
  */
 export async function getAuthHeaders(
   walletAddress: string,
-  signMessage: SignMessageMutateAsync
+  signMessage: (message: string) => Promise<string>
 ): Promise<Record<string, string>> {
   const timestamp = Date.now().toString();
   const message = `Authenticate wallet: ${walletAddress}\nTimestamp: ${timestamp}`;
   
   try {
-    const signature = await signMessage({ message });
+    const signature = await signMessage(message);
     
     return {
       'x-wallet-address': walletAddress,
@@ -52,7 +50,7 @@ const authCache = new Map<string, CachedAuth>();
  */
 export async function getCachedAuthHeaders(
   walletAddress: string,
-  signMessage: SignMessageMutateAsync
+  signMessage: (message: string) => Promise<string>
 ): Promise<Record<string, string>> {
   const cached = authCache.get(walletAddress);
   
