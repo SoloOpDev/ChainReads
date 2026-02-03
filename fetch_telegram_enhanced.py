@@ -77,7 +77,7 @@ async def download_media(client, message, channel_name):
         print(f"  ❌ Error downloading media: {e}")
         return None
 
-async def fetch_channel_posts(client, channel_name, existing_ids):
+async def fetch_channel_posts(client, channel_name, existing_ids, category):
     """Fetch posts from a single channel with enhanced filtering"""
     try:
         print(f"\n📱 Fetching from @{channel_name}...")
@@ -152,8 +152,8 @@ async def fetch_channel_posts(client, channel_name, existing_ids):
                 'id': post_id,
                 'messageId': msg.id,
                 'channel': channel_name,
-                'category': '',  # Will be set later
-                'text': msg.message or '',  # Ensure text is never None
+                'category': category,
+                'text': msg.message or '',
                 'date': msg.date.isoformat(),
                 'image': media_path if media_path and ('.jpg' in media_path or '.png' in media_path or '.webp' in media_path) else None,
                 'video': media_path if media_path and '.mp4' in media_path else None,
@@ -239,9 +239,7 @@ async def main():
         if TRADING_CHANNELS:
             print("📊 Fetching Trading Channels...")
             for channel in TRADING_CHANNELS:
-                posts = await fetch_channel_posts(client, channel, existing_ids)
-                for post in posts:
-                    post['category'] = 'trading'
+                posts = await fetch_channel_posts(client, channel, existing_ids, 'trading')
                 all_posts.extend(posts)
                 await asyncio.sleep(1)
         
@@ -249,9 +247,7 @@ async def main():
         if AIRDROP_CHANNELS:
             print("\n🎁 Fetching Airdrop Channels...")
             for channel in AIRDROP_CHANNELS:
-                posts = await fetch_channel_posts(client, channel, existing_ids)
-                for post in posts:
-                    post['category'] = 'airdrop'
+                posts = await fetch_channel_posts(client, channel, existing_ids, 'airdrop')
                 all_posts.extend(posts)
                 await asyncio.sleep(1)
         
