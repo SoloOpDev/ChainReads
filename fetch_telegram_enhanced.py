@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Telegram Channel Fetcher - ENHANCED VERSION
+Telegram Channel Fetcher - ENHANCED VERSION with ImgBB Upload
 Fetches posts from multiple Telegram channels and saves to JSON
 FILTERS: Replies, Forwards, Duplicates, Old Posts, Short Text
+Images uploaded to ImgBB CDN (no Railway redeployments needed!)
 """
 
 import json
@@ -11,11 +12,14 @@ from datetime import datetime, timedelta
 from telethon import TelegramClient
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 import asyncio
+import requests
+import base64
 
 # Telegram API credentials
 API_ID = os.getenv('TELEGRAM_API_ID')
 API_HASH = os.getenv('TELEGRAM_API_HASH')
 SESSION_STRING = os.getenv('TELEGRAM_SESSION', '')
+IMGBB_API_KEY = os.getenv('IMGBB_API_KEY', '')
 
 # Get channels from environment variables
 TRADING_CHANNELS_ENV = os.getenv('TELEGRAM_TRADING_CHANNELS', '')
@@ -35,18 +39,50 @@ if not API_ID or not API_HASH:
     print("❌ Missing Telegram API credentials!")
     exit(1)
 
+if not IMGBB_API_KEY:
+    print("❌ Missing IMGBB_API_KEY!")
+    exit(1)
+
 if not TRADING_CHANNELS and not AIRDROP_CHANNELS:
     print("❌ No channels specified!")
     exit(1)
 
+def upload_to_imgbb(filepath):
+    """Upload image to ImgBB and return permanent URL"""
+    try:
+        with open(filepath, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        response = requests.post(
+            'https://api.imgbb.com/1/upload',
+            data={
+                'key': IMGBB_API_KEY,
+                'image': image_data,
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            url = data['data']['url']
+            print(f"    ✅ Uploaded to ImgBB: {url}")
+            return url
+        else:
+            print(f"    ❌ ImgBB upload failed: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"    ❌ Error uploading to ImgBB: {e}")
+        return None
+
 async def download_media(client, message, channel_name):
-    """Download media from message and return local path"""
+    """Download media from message, upload to ImgBB, and return URL"""
     if not message.media:
         return None
     
     try:
-        telegram_dir = os.path.join('client', 'public', 'telegram')
-        os.makedirs(telegram_dir, exist_ok=True)
+        # Create temp directory
+        temp_dir = 'temp_telegram'
+        os.makedirs(temp_dir, exist_ok=True)
         
         timestamp = int(message.date.timestamp())
         filename = f"{channel_name}_{message.id}_{timestamp}"
@@ -59,32 +95,43 @@ async def download_media(client, message, channel_name):
                 ext = mime.split('/')[-1]
                 filename += f'.{ext}'
             elif 'video' in mime:
-                filename += '.mp4'
+                print(f"  ⏭️  Skipping video: {filename}")
+                return None  # Skip videos (ImgBB doesn't support videos well)
             else:
                 return None
         else:
             return None
         
-        filepath = os.path.join(telegram_dir, filename)
+        filepath = os.path.join(temp_dir, filename)
         
-        # Skip if already exists
-        if os.path.exists(filepath):
-            return f"/telegram/{filename}"
-        
-        # Download with timeout
+        # Download with 30-second timeout
         print(f"  📥 Downloading: {filename}")
         try:
             await asyncio.wait_for(
                 client.download_media(message, filepath),
-                timeout=10  # 10 second timeout per file
+                timeout=30
             )
-            return f"/telegram/{filename}"
+            
+            # Upload to ImgBB
+            url = upload_to_imgbb(filepath)
+            
+            # Delete temp file
+            try:
+                os.remove(filepath)
+            except:
+                pass
+            
+            return url
+                
         except asyncio.TimeoutError:
             print(f"  ⏱️  Timeout downloading {filename}, skipping")
             return None
+        except Exception as e:
+            print(f"  ❌ Error downloading {filename}: {e}")
+            return None
     
     except Exception as e:
-        print(f"  ❌ Error downloading media: {e}")
+        print(f"  ❌ Error in download_media: {e}")
         return None
 
 async def fetch_channel_posts(client, channel_name, existing_ids, category):
@@ -153,10 +200,10 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                     stats['too_short'] += 1
                     continue
             
-            # Download media if present
-            media_path = None
+            # Download media if present and upload to ImgBB
+            media_url = None
             if msg.media:
-                media_path = await download_media(client, msg, channel_name)
+                media_url = await download_media(client, msg, channel_name)
             
             post = {
                 'id': post_id,
@@ -165,8 +212,8 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                 'category': category,
                 'text': msg.message or '',
                 'date': msg.date.isoformat(),
-                'image': media_path if media_path and ('.jpg' in media_path or '.png' in media_path or '.webp' in media_path) else None,
-                'video': media_path if media_path and '.mp4' in media_path else None,
+                'image': media_url,  # ImgBB URL or None
+                'video': None,  # We skip videos for now
                 'hasMedia': msg.media is not None,
                 'views': msg.views or 0,
             }
