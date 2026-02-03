@@ -25,10 +25,10 @@ TRADING_CHANNELS = [ch.strip() for ch in TRADING_CHANNELS_ENV.split(',') if ch.s
 AIRDROP_CHANNELS = [ch.strip() for ch in AIRDROP_CHANNELS_ENV.split(',') if ch.strip()]
 
 # Configuration
-POSTS_PER_CHANNEL = 50
-MAX_DAYS_OLD = 30  # Only fetch posts from last 30 days
-MIN_TEXT_LENGTH = 10  # Minimum text length for text-only posts
-FILTER_FORWARDS = True  # Filter out forwarded messages
+POSTS_PER_CHANNEL = 10  # Reduced to 10 for faster GitHub Actions
+MAX_DAYS_OLD = 7  # Only last 7 days
+MIN_TEXT_LENGTH = 10
+FILTER_FORWARDS = True
 
 # Check credentials
 if not API_ID or not API_HASH:
@@ -67,11 +67,21 @@ async def download_media(client, message, channel_name):
         
         filepath = os.path.join(telegram_dir, filename)
         
-        if not os.path.exists(filepath):
-            print(f"  📥 Downloading media: {filename}")
-            await client.download_media(message, filepath)
+        # Skip if already exists
+        if os.path.exists(filepath):
+            return f"/telegram/{filename}"
         
-        return f"/telegram/{filename}"
+        # Download with timeout
+        print(f"  📥 Downloading: {filename}")
+        try:
+            await asyncio.wait_for(
+                client.download_media(message, filepath),
+                timeout=10  # 10 second timeout per file
+            )
+            return f"/telegram/{filename}"
+        except asyncio.TimeoutError:
+            print(f"  ⏱️  Timeout downloading {filename}, skipping")
+            return None
     
     except Exception as e:
         print(f"  ❌ Error downloading media: {e}")
@@ -254,9 +264,9 @@ async def main():
         # Sort by date (newest first)
         all_posts.sort(key=lambda x: x['date'], reverse=True)
         
-        # Limit to 50 posts per category
-        trading_posts = [p for p in all_posts if p.get('category') == 'trading'][:50]
-        airdrop_posts = [p for p in all_posts if p.get('category') == 'airdrop'][:50]
+        # Limit to 30 posts per category (60 total)
+        trading_posts = [p for p in all_posts if p.get('category') == 'trading'][:30]
+        airdrop_posts = [p for p in all_posts if p.get('category') == 'airdrop'][:30]
         all_posts = trading_posts + airdrop_posts
         
         # Save to JSON
