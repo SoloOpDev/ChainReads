@@ -39,10 +39,21 @@ jobs:
           import os
           import requests
           
+          # Check if file exists
+          if not os.path.exists('telegram_posts.json'):
+              print("❌ telegram_posts.json not found!")
+              print("Files in current directory:")
+              print(os.listdir('.'))
+              exit(1)
+          
           with open('telegram_posts.json', 'r', encoding='utf-8') as f:
               data = json.load(f)
           
           posts = data.get('results', [])
+          
+          if not posts:
+              print("⚠️ No posts to send")
+              exit(0)
           
           for post in posts:
               if post.get('image'):
@@ -56,6 +67,8 @@ jobs:
               "posts": posts
           }
           
+          print(f"📤 Sending {len(posts)} posts to API...")
+          
           response = requests.post(
               "${{ secrets.RAILWAY_API_URL }}/api/telegram/update",
               json=payload,
@@ -67,4 +80,6 @@ jobs:
           
           if response.status_code != 200:
               exit(1)
+          
+          print("✅ Data sent successfully!")
           EOF
