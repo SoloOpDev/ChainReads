@@ -20,7 +20,7 @@ jobs:
           
       - name: Install dependencies
         run: |
-          pip install telethon python-dotenv cryptg
+          pip install telethon python-dotenv cryptg requests
           
       - name: Fetch Telegram data
         run: python3 fetch_telegram_enhanced.py
@@ -37,6 +37,7 @@ jobs:
           import json
           import base64
           import os
+          import requests
           
           with open('telegram_posts.json', 'r', encoding='utf-8') as f:
               data = json.load(f)
@@ -50,16 +51,20 @@ jobs:
                       with open(img_path, 'rb') as img:
                           post['imageData'] = base64.b64encode(img.read()).decode('utf-8')
           
-          with open('telegram_posts_with_images.json', 'w', encoding='utf-8') as f:
-              json.dump(posts, f)
-          EOF
-          
-          curl -X POST "${{ secrets.RAILWAY_API_URL }}/api/telegram/update" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -d @- << 'CURL_EOF'
-          {
-            "secret": "${{ secrets.TELEGRAM_UPDATE_SECRET }}",
-            "posts": $(cat telegram_posts_with_images.json)
+          payload = {
+              "secret": "${{ secrets.TELEGRAM_UPDATE_SECRET }}",
+              "posts": posts
           }
-          CURL_EOF
+          
+          response = requests.post(
+              "${{ secrets.RAILWAY_API_URL }}/api/telegram/update",
+              json=payload,
+              headers={"Content-Type": "application/json"}
+          )
+          
+          print(f"Status: {response.status_code}")
+          print(f"Response: {response.text}")
+          
+          if response.status_code != 200:
+              exit(1)
+          EOF
