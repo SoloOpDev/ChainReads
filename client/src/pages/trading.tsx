@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Eye, Gift, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { getWalletAddress } from "@/lib/wallet";
+import { Eye, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { ClaimButton } from "@/components/claim-button";
 
 interface TelegramPost {
   messageId: number;
@@ -18,194 +17,9 @@ interface TelegramPost {
 }
 
 export default function Trading() {
-  const [hasScrolled, setHasScrolled] = useState(false);
-  const [showClaimButton, setShowClaimButton] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
-  const { toast} = useToast();
-  const queryClient = useQueryClient();
-  
-  // Use ref to track claim status to avoid stale closure bug
-  const claimStatusRef = useRef<boolean>(false);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hasScrolledRef = useRef<boolean>(false);
-
-  // Get wallet address (cached to prevent spamming MetaMask)
-  useEffect(() => {
-    const getAddress = async () => {
-      const address = await getWalletAddress();
-      setWalletAddress(address);
-    };
-    getAddress();
-
-    if (typeof window.ethereum !== 'undefined') {
-      const handleAccountsChanged = (accounts: string[]) => {
-        const newAddress = accounts.length > 0 ? accounts[0] : null;
-        setWalletAddress(newAddress);
-        // Reset state when wallet changes
-        setHasScrolled(false);
-        setShowClaimButton(false);
-        claimStatusRef.current = false;
-      };
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      return () => {
-        if (window.ethereum?.removeListener) {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        }
-      };
-    }
-  }, []);
-
-  // Check claim status
-  const { data: claimStatus } = useQuery({
-    queryKey: ['/api/claim-status', walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return { claimedSections: { trading: false }, totalToday: 0 };
-      
-      // Normalize to lowercase for DB lookup
-      const normalizedAddress = walletAddress.toLowerCase();
-      
-      const res = await fetch('/api/claim-status', {
-        headers: { 'x-wallet-address': normalizedAddress }
-      });
-      
-      if (!res.ok) return { claimedSections: { trading: false }, totalToday: 0 };
-      return res.json();
-    },
-    enabled: !!walletAddress,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-  });
-
-  const alreadyClaimed = claimStatus?.claimedSections?.trading || false;
-  
-  // Update ref whenever claim status changes
-  useEffect(() => {
-    claimStatusRef.current = alreadyClaimed;
-    
-    // Hide button immediately if already claimed
-    if (alreadyClaimed) {
-      setShowClaimButton(false);
-    }
-  }, [alreadyClaimed]);
-
-  // Scroll detection - show claim button after 10 seconds of scrolling
-  useEffect(() => {
-    const handleScroll = () => {
-      // Only trigger once when scrolling past 100px - use ref to prevent multiple triggers
-      if (!hasScrolledRef.current && window.scrollY > 100) {
-        hasScrolledRef.current = true; // Set ref immediately to block other scroll events
-        setHasScrolled(true);
-        
-        console.log('[TRADING] Scroll detected, wallet:', walletAddress, 'alreadyClaimed:', claimStatusRef.current);
-        
-        // Don't start timer if no wallet connected
-        if (!walletAddress) {
-          console.log('[TRADING] No wallet connected, not starting timer');
-          return;
-        }
-        
-        // Don't start timer if already claimed (use ref to avoid stale closure)
-        if (claimStatusRef.current) {
-          console.log('[TRADING] Already claimed, not starting timer');
-          return;
-        }
-        
-        console.log('[TRADING] Starting countdown from 10');
-        
-        // Initialize countdown
-        let timeLeft = 10;
-        setCountdown(timeLeft);
-        
-        // Start countdown
-        countdownIntervalRef.current = setInterval(() => {
-          timeLeft--;
-          console.log('[TRADING] Countdown tick:', timeLeft, 'alreadyClaimed:', claimStatusRef.current);
-          
-          if (timeLeft <= 0) {
-            console.log('[TRADING] Countdown finished, showing button');
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-              countdownIntervalRef.current = null;
-            }
-            setCountdown(0);
-            // Force show button - use setTimeout to ensure state update happens
-            setTimeout(() => {
-              if (!claimStatusRef.current) {
-                console.log('[TRADING] Setting showClaimButton to TRUE');
-                setShowClaimButton(true);
-              } else {
-                console.log('[TRADING] NOT showing button - already claimed');
-              }
-            }, 100);
-          } else {
-            setCountdown(timeLeft);
-          }
-        }, 1000);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    };
-  }, [walletAddress]); // Add walletAddress to deps
-
-  const claimMutation = useMutation({
-    mutationFn: async () => {
-      if (!walletAddress) throw new Error('Wallet not connected');
-      
-      // Normalize to lowercase for DB lookup
-      const normalizedAddress = walletAddress.toLowerCase();
-      
-      const res = await fetch('/api/claim-points', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-wallet-address': normalizedAddress,
-        },
-        body: JSON.stringify({
-          section: 'trading',
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to claim points');
-      }
-
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Hide button immediately
-      setShowClaimButton(false);
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/wallet/profile'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/claim-status'] });
-      
-      toast({
-        title: '🎉 Points Claimed!',
-        description: `You earned ${data.pointsEarned} points from Trading! Total today: ${data.totalToday} claims`,
-        duration: 5000,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Claim Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
 
   const { data: posts, isLoading } = useQuery<TelegramPost[]>({
     queryKey: ["/api/telegram/trading"],

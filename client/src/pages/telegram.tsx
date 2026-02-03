@@ -1,13 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Eye, Gift, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { getWalletAddress } from "@/lib/wallet";
+import { Eye, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { ClaimButton } from "@/components/claim-button";
 
 interface TelegramPost {
   messageId: number;
@@ -18,201 +15,16 @@ interface TelegramPost {
   views: number;
 }
 
-export default function Trading() {
-  const [hasScrolled, setHasScrolled] = useState(false);
-  const [showClaimButton, setShowClaimButton] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+export default function Telegram() {
   const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
-  const { toast} = useToast();
-  const queryClient = useQueryClient();
-  
-  // Use ref to track claim status to avoid stale closure bug
-  const claimStatusRef = useRef<boolean>(false);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hasScrolledRef = useRef<boolean>(false);
-
-  // Get wallet address (cached to prevent spamming MetaMask)
-  useEffect(() => {
-    const fetchAddress = async () => {
-      const address = await getWalletAddress();
-      setWalletAddress(address);
-    };
-    fetchAddress();
-
-    if (typeof window.ethereum !== 'undefined') {
-      const handleAccountsChanged = (accounts: string[]) => {
-        const newAddress = accounts.length > 0 ? accounts[0] : null;
-        setWalletAddress(newAddress);
-        // Reset state when wallet changes
-        setHasScrolled(false);
-        setShowClaimButton(false);
-        claimStatusRef.current = false;
-      };
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      return () => {
-        if (window.ethereum?.removeListener) {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        }
-      };
-    }
-  }, []);
-
-  // Check claim status
-  const { data: claimStatus } = useQuery({
-    queryKey: ['/api/claim-status', walletAddress],
-    queryFn: async () => {
-      if (!walletAddress) return { claimedSections: { trading: false }, totalToday: 0 };
-      
-      // Normalize to lowercase for DB lookup
-      const normalizedAddress = walletAddress.toLowerCase();
-      
-      const res = await fetch('/api/claim-status', {
-        headers: { 'x-wallet-address': normalizedAddress }
-      });
-      
-      if (!res.ok) return { claimedSections: { trading: false }, totalToday: 0 };
-      return res.json();
-    },
-    enabled: !!walletAddress,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-  });
-
-  const alreadyClaimed = claimStatus?.claimedSections?.trading || false;
-  
-  // Update ref whenever claim status changes
-  useEffect(() => {
-    claimStatusRef.current = alreadyClaimed;
-    
-    // Hide button immediately if already claimed
-    if (alreadyClaimed) {
-      setShowClaimButton(false);
-    }
-  }, [alreadyClaimed]);
-
-  // Scroll detection - show claim button after 10 seconds of scrolling
-  useEffect(() => {
-    const handleScroll = () => {
-      // Only trigger once when scrolling past 100px - use ref to prevent multiple triggers
-      if (!hasScrolledRef.current && window.scrollY > 100) {
-        hasScrolledRef.current = true; // Set ref immediately to block other scroll events
-        setHasScrolled(true);
-        
-        console.log('[TRADING] Scroll detected, wallet:', walletAddress, 'alreadyClaimed:', claimStatusRef.current);
-        
-        // Don't start timer if no wallet connected
-        if (!walletAddress) {
-          console.log('[TRADING] No wallet connected, not starting timer');
-          return;
-        }
-        
-        // Don't start timer if already claimed (use ref to avoid stale closure)
-        if (claimStatusRef.current) {
-          console.log('[TRADING] Already claimed, not starting timer');
-          return;
-        }
-        
-        console.log('[TRADING] Starting countdown from 10');
-        
-        // Initialize countdown
-        let timeLeft = 10;
-        setCountdown(timeLeft);
-        
-        // Start countdown
-        countdownIntervalRef.current = setInterval(() => {
-          timeLeft--;
-          console.log('[TRADING] Countdown tick:', timeLeft, 'alreadyClaimed:', claimStatusRef.current);
-          
-          if (timeLeft <= 0) {
-            console.log('[TRADING] Countdown finished, showing button');
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-              countdownIntervalRef.current = null;
-            }
-            setCountdown(0);
-            // Force show button - use setTimeout to ensure state update happens
-            setTimeout(() => {
-              if (!claimStatusRef.current) {
-                console.log('[TRADING] Setting showClaimButton to TRUE');
-                setShowClaimButton(true);
-              } else {
-                console.log('[TRADING] NOT showing button - already claimed');
-              }
-            }, 100);
-          } else {
-            setCountdown(timeLeft);
-          }
-        }, 1000);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    };
-  }, [walletAddress]); // Add walletAddress to deps
-
-  const claimMutation = useMutation({
-    mutationFn: async () => {
-      if (!walletAddress) throw new Error('Wallet not connected');
-      
-      // Normalize to lowercase for DB lookup
-      const normalizedAddress = walletAddress.toLowerCase();
-      
-      const res = await fetch('/api/claim-points', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-wallet-address': normalizedAddress,
-        },
-        body: JSON.stringify({
-          section: 'trading',
-        }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to claim points');
-      }
-
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Hide button immediately
-      setShowClaimButton(false);
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/wallet/profile'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/claim-status'] });
-      
-      toast({
-        title: '🎉 Points Claimed!',
-        description: `You earned ${data.pointsEarned} points from Trading! Total today: ${data.totalToday} claims`,
-        duration: 5000,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: 'Claim Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
 
   const { data: posts, isLoading } = useQuery<TelegramPost[]>({
-    queryKey: ["/api/telegram/trading"],
+    queryKey: ["/api/telegram/airdrop"],
     queryFn: async () => {
-      const res = await fetch("/api/telegram/trading");
-      if (!res.ok) throw new Error("Failed to fetch trading signals");
+      const res = await fetch("/api/telegram/airdrop");
+      if (!res.ok) throw new Error("Failed to fetch airdrop opportunities");
       const data = await res.json();
       
       // Handle new response format { posts: [], fetchedAt: "", totalPosts: 0 }
@@ -233,20 +45,6 @@ export default function Trading() {
 
   // Get posts with images for navigation
   const postsWithImages = (posts || []).filter(post => post.image);
-
-  // Filter posts by channel for tabs
-  const tradingPosts = (posts || []).filter(post => 
-    post.channel.toLowerCase().includes('signal') || 
-    post.channel.toLowerCase().includes('trading') ||
-    post.channel.toLowerCase().includes('crypto')
-  );
-  
-  const airdropPosts = (posts || []).filter(post => 
-    post.channel.toLowerCase().includes('airdrop') || 
-    post.channel.toLowerCase().includes('drop')
-  );
-  
-  const allPosts = posts || [];
 
   // Handle keyboard navigation for image preview
   useEffect(() => {
@@ -319,10 +117,10 @@ export default function Trading() {
         <div className="relative z-10">
           <div className="pt-6 pb-4" style={{ paddingLeft: '15px', paddingRight: '15px' }}>
             <h1 className="text-3xl font-bold mb-6 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent border-b-2 border-emerald-500/30 pb-4">
-              Trading Signals
+              Airdrop Opportunities
             </h1>
           </div>
-          <div className="grid grid-cols-5 gap-4" style={{ paddingLeft: '15px', paddingRight: '15px' }}>
+          <div className="grid grid-cols-5 gap-6" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
             {[...Array(10)].map((_, i) => (
               <Card key={i} className="backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/50 rounded-xl p-4">
                 <div className="h-48 bg-emerald-800/20 animate-pulse rounded mb-4" />
@@ -475,229 +273,59 @@ export default function Trading() {
         {/* Header Section with Border */}
         <div className="pt-6 pb-4 px-4 md:px-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b-2 border-emerald-500/30 mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-            Trading Signals
+            Airdrop Opportunities
           </h1>
           
-          {/* Claim instruction or Timer or Button or Already Claimed */}
-          {!walletAddress ? (
-            <div className="bg-yellow-900/30 border-2 border-yellow-500/50 text-yellow-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>🔌 Connect wallet to claim points!</span>
-            </div>
-          ) : alreadyClaimed ? (
-            <div className="bg-green-900/30 border-2 border-green-500/50 text-green-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>✅ Already claimed today!</span>
-            </div>
-          ) : !hasScrolled ? (
-            <div className="bg-emerald-900/30 border-2 border-emerald-500/50 text-emerald-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>📜 Scroll down to claim 35 points!</span>
-            </div>
-          ) : showClaimButton ? (
-            <Button
-              onClick={async () => {
-                if (!walletAddress) {
-                  // Prompt wallet connection
-                  if (typeof window.ethereum !== 'undefined') {
-                    try {
-                      await window.ethereum.request({ method: 'eth_requestAccounts' });
-                      toast({
-                        title: 'Wallet Connected!',
-                        description: 'You can now claim your points.',
-                      });
-                    } catch (error) {
-                      toast({
-                        title: 'Connection Failed',
-                        description: 'Please connect your wallet to claim points.',
-                        variant: 'destructive',
-                      });
-                    }
-                  } else {
-                    toast({
-                      title: 'No Wallet Found',
-                      description: 'Please install MetaMask to claim points.',
-                      variant: 'destructive',
-                    });
-                  }
-                } else {
-                  claimMutation.mutate();
-                }
-              }}
-              disabled={claimMutation.isPending}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-6 rounded-full shadow-xl border-2 border-emerald-400/50 flex-shrink-0"
-            >
-              <Gift className="h-5 w-5 mr-2" />
-              {claimMutation.isPending ? 'Claiming...' : 'Claim 35 Points!'}
-            </Button>
-          ) : (
-            <div className="bg-emerald-900/30 border-2 border-emerald-500/50 text-emerald-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <div className="w-4 h-4 md:w-5 md:h-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-              <span>Claim available in {countdown}s...</span>
-            </div>
-          )}
+          <ClaimButton section="airdrop" />
         </div>
 
-        <Tabs defaultValue="all" className="w-full px-4 md:px-8">
-          <TabsList className="mb-6 bg-emerald-900/30 border border-emerald-700/30">
-            <TabsTrigger value="all" className="data-[state=active]:bg-emerald-700/50 data-[state=active]:text-white text-emerald-300">
-              All
-            </TabsTrigger>
-            <TabsTrigger value="trading" className="data-[state=active]:bg-emerald-700/50 data-[state=active]:text-white text-emerald-300">
-              Trading
-            </TabsTrigger>
-            <TabsTrigger value="airdrop" className="data-[state=active]:bg-emerald-700/50 data-[state=active]:text-white text-emerald-300">
-              Airdrops
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all">
-            <div className="grid grid-cols-5 gap-4 pb-6">
-              {allPosts.map((post) => (
-                <Card
-                  key={`${post.channel}-${post.messageId}`}
-                  className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
+        <div className="grid grid-cols-5 gap-6 pb-6 px-2 md:px-4">
+          {posts?.map((post) => (
+            <Card
+              key={`${post.channel}-${post.messageId}`}
+              className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
+            >
+              {post.image && (
+                <div 
+                  className="w-full h-48 flex-shrink-0 overflow-hidden cursor-pointer group relative"
+                  onClick={() => openImagePreview(post)}
                 >
-                  {post.image && (
-                    <div 
-                      className="w-full h-48 flex-shrink-0 overflow-hidden cursor-pointer group relative"
-                      onClick={() => openImagePreview(post)}
-                    >
-                      <img
-                        src={post.image}
-                        alt=""
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 pointer-events-none"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center pointer-events-none">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center gap-2">
-                          <Eye className="w-8 h-8 text-white drop-shadow-lg" />
-                          <span className="text-white text-sm font-medium drop-shadow-lg">Quick View</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex-1 p-4 flex flex-col overflow-hidden group">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs">
-                        {post.channel}
-                      </Badge>
-                      <span className="text-xs text-emerald-300">
-                        {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
-                      </span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto mb-2 scrollbar-thin scrollbar-thumb-emerald-500/50 scrollbar-track-emerald-900/20">
-                      <p className="text-sm text-emerald-100 group-hover:line-clamp-none line-clamp-3 transition-all">
-                        {post.text}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-emerald-400 mt-auto">
-                      <Eye className="h-3 w-3" />
-                      <span>{post.views?.toLocaleString() || 0} views</span>
+                  <img
+                    src={post.image}
+                    alt=""
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 pointer-events-none"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center pointer-events-none">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center gap-2">
+                      <Eye className="w-8 h-8 text-white drop-shadow-lg" />
+                      <span className="text-white text-sm font-medium drop-shadow-lg">Quick View</span>
                     </div>
                   </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="trading">
-            <div className="grid grid-cols-5 gap-4 pb-6">
-              {tradingPosts.map((post) => (
-                <Card
-                  key={`${post.channel}-${post.messageId}`}
-                  className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
-                >
-                  {post.image && (
-                    <div 
-                      className="w-full h-48 flex-shrink-0 overflow-hidden cursor-pointer group relative"
-                      onClick={() => openImagePreview(post)}
-                    >
-                      <img
-                        src={post.image}
-                        alt=""
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 pointer-events-none"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center pointer-events-none">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center gap-2">
-                          <Eye className="w-8 h-8 text-white drop-shadow-lg" />
-                          <span className="text-white text-sm font-medium drop-shadow-lg">Quick View</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex-1 p-4 flex flex-col overflow-hidden group">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs">
-                        {post.channel}
-                      </Badge>
-                      <span className="text-xs text-emerald-300">
-                        {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
-                      </span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto mb-2 scrollbar-thin scrollbar-thumb-emerald-500/50 scrollbar-track-emerald-900/20">
-                      <p className="text-sm text-emerald-100 group-hover:line-clamp-none line-clamp-3 transition-all">
-                        {post.text}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-emerald-400 mt-auto">
-                      <Eye className="h-3 w-3" />
-                      <span>{post.views?.toLocaleString() || 0} views</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="airdrop">
-            <div className="grid grid-cols-5 gap-4 pb-6">
-              {airdropPosts.map((post) => (
-                <Card
-                  key={`${post.channel}-${post.messageId}`}
-                  className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
-                >
-                  {post.image && (
-                    <div 
-                      className="w-full h-48 flex-shrink-0 overflow-hidden cursor-pointer group relative"
-                      onClick={() => openImagePreview(post)}
-                    >
-                      <img
-                        src={post.image}
-                        alt=""
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 pointer-events-none"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center pointer-events-none">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center gap-2">
-                          <Eye className="w-8 h-8 text-white drop-shadow-lg" />
-                          <span className="text-white text-sm font-medium drop-shadow-lg">Quick View</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex-1 p-4 flex flex-col overflow-hidden group">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs">
-                        {post.channel}
-                      </Badge>
-                      <span className="text-xs text-emerald-300">
-                        {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
-                      </span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto mb-2 scrollbar-thin scrollbar-thumb-emerald-500/50 scrollbar-track-emerald-900/20">
-                      <p className="text-sm text-emerald-100 group-hover:line-clamp-none line-clamp-3 transition-all">
-                        {post.text}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-emerald-400 mt-auto">
-                      <Eye className="h-3 w-3" />
-                      <span>{post.views?.toLocaleString() || 0} views</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+                </div>
+              )}
+              <div className="flex-1 p-4 flex flex-col overflow-hidden group">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Badge variant="secondary" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/30 text-xs">
+                    {post.channel}
+                  </Badge>
+                  <span className="text-xs text-emerald-300">
+                    {formatDistanceToNow(new Date(post.date), { addSuffix: true })}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto mb-2 scrollbar-thin scrollbar-thumb-emerald-500/50 scrollbar-track-emerald-900/20">
+                  <p className="text-sm text-emerald-100 group-hover:line-clamp-none line-clamp-3 transition-all">
+                    {post.text}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-emerald-400 mt-auto">
+                  <Eye className="h-3 w-3" />
+                  <span>{post.views?.toLocaleString() || 0} views</span>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );
