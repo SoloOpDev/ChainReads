@@ -92,8 +92,9 @@ async def fetch_channel_posts(client, channel_name, existing_ids):
             print(f"  ❌ Cannot access @{channel_name}: {e}")
             return []
         
-        # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=MAX_DAYS_OLD)
+        # Calculate cutoff date (timezone-aware)
+        from datetime import timezone
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=MAX_DAYS_OLD)
         
         # Fetch messages
         messages = await client.get_messages(channel, limit=POSTS_PER_CHANNEL * 3)
