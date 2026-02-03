@@ -10,6 +10,7 @@ import type { CryptoPanicResponse } from "@shared/schema";
 import { getApiUrl } from "@/lib/api";
 import { createPortal } from "react-dom";
 import { getPointsSelection } from "@/lib/points-selection";
+import { getAuthHeaders } from "@/lib/auth";
 
 export default function ArticlePage({ params }: { params: { id: string } }) {
   const [, setLocation] = useLocation();
@@ -267,11 +268,24 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
 
       const normalizedAddress = walletAddress.toLowerCase();
 
+      // Simple sign function using window.ethereum
+      const signMessage = async (message: string): Promise<string> => {
+        if (!window.ethereum) throw new Error("No wallet found");
+        const signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [message, walletAddress],
+        });
+        return signature as string;
+      };
+
+      // Get authentication headers with signature
+      const authHeaders = await getAuthHeaders(walletAddress, signMessage);
+
       const response = await fetch(getApiUrl('/api/news/claim'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-wallet-address': normalizedAddress,
+          ...authHeaders,
         },
         body: JSON.stringify({ 
           articleId: params.id
