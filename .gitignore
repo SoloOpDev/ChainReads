@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment variables - NEVER COMMIT
+.env
+.env.*
+!.env.example
+RAILWAY_ENV_VARIABLES.txt
+*SECRETS*.txt
+!GITHUB_SECRETS.md
+GITHUB_SECRETS_COPY_PASTE.txt
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Build output
+dist/
+build/
+
+# Telegram media (fetched dynamically)
+client/public/telegram/
+
+# Development files
+*.log
+*.bak
+.local/
+.vscode/
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+*.swo
