@@ -210,7 +210,7 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                 'messageId': msg.id,
                 'channel': channel_name,
                 'category': category,
-                'text': msg.message or '',
+                'text': msg.message or 'No text',  # Ensure text is never empty
                 'date': msg.date.isoformat(),
                 'image': media_url,  # ImgBB URL or None
                 'video': None,  # We skip videos for now
