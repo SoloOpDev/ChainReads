@@ -257,6 +257,9 @@ async def main():
         # Sort by date (newest first)
         all_posts.sort(key=lambda x: x['date'], reverse=True)
         
+        # Limit to latest 50 posts total
+        all_posts = all_posts[:50]
+        
         # Save to JSON
         output = {
             'results': all_posts,
