@@ -152,7 +152,8 @@ async def fetch_channel_posts(client, channel_name, existing_ids):
                 'id': post_id,
                 'messageId': msg.id,
                 'channel': channel_name,
-                'text': msg.message or '',
+                'category': '',  # Will be set later
+                'text': msg.message or '',  # Ensure text is never None
                 'date': msg.date.isoformat(),
                 'image': media_path if media_path and ('.jpg' in media_path or '.png' in media_path or '.webp' in media_path) else None,
                 'video': media_path if media_path and '.mp4' in media_path else None,
@@ -257,8 +258,10 @@ async def main():
         # Sort by date (newest first)
         all_posts.sort(key=lambda x: x['date'], reverse=True)
         
-        # Limit to latest 50 posts total
-        all_posts = all_posts[:50]
+        # Limit to 50 posts per category
+        trading_posts = [p for p in all_posts if p.get('category') == 'trading'][:50]
+        airdrop_posts = [p for p in all_posts if p.get('category') == 'airdrop'][:50]
+        all_posts = trading_posts + airdrop_posts
         
         # Save to JSON
         output = {
