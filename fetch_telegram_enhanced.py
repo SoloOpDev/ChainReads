@@ -248,11 +248,12 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
 
 async def main():
     """Main function to fetch all channels"""
-    print("🚀 Starting Telegram Channel Fetcher (ENHANCED)")
+    print("🚀 Starting Telegram Channel Fetcher (ENHANCED with ImgBB)")
     print("=" * 60)
     print(f"📊 Trading Channels: {', '.join(TRADING_CHANNELS) if TRADING_CHANNELS else 'None'}")
     print(f"🎁 Airdrop Channels: {', '.join(AIRDROP_CHANNELS) if AIRDROP_CHANNELS else 'None'}")
     print(f"🔍 Filters: Replies, Forwards, Duplicates, Old Posts ({MAX_DAYS_OLD}d), Short Text")
+    print(f"📤 Image Upload: ImgBB CDN")
     print("=" * 60)
     
     # Load existing posts to prevent duplicates
@@ -273,10 +274,14 @@ async def main():
         print("❌ TELEGRAM_SESSION is empty!")
         return
     
+    print(f"🔑 Session string length: {len(SESSION_STRING)} characters")
+    
     try:
         session = StringSession(SESSION_STRING)
+        print("✅ Session string parsed successfully")
     except Exception as e:
-        print(f"❌ Invalid session string: {e}")
+        print(f"❌ Invalid session string format: {e}")
+        print(f"Session string preview: {SESSION_STRING[:50]}...")
         return
     
     client = TelegramClient(session, API_ID, API_HASH)
