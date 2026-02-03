@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { Eye, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { ClaimButton } from "@/components/claim-button";
@@ -16,7 +15,7 @@ interface TelegramPost {
   views: number;
 }
 
-export default function Trading() {
+export default function trading() {
   const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
@@ -25,7 +24,7 @@ export default function Trading() {
     queryKey: ["/api/telegram/trading"],
     queryFn: async () => {
       const res = await fetch("/api/telegram/trading");
-      if (!res.ok) throw new Error("Failed to fetch trading signals");
+      if (!res.ok) throw new Error("Failed to fetch trading opportunities");
       const data = await res.json();
       
       // Handle new response format { posts: [], fetchedAt: "", totalPosts: 0 }
@@ -118,7 +117,7 @@ export default function Trading() {
         <div className="relative z-10">
           <div className="pt-6 pb-4" style={{ paddingLeft: '15px', paddingRight: '15px' }}>
             <h1 className="text-3xl font-bold mb-6 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent border-b-2 border-emerald-500/30 pb-4">
-              Trading Signals
+              trading Opportunities
             </h1>
           </div>
           <div className="grid grid-cols-5 gap-6" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
@@ -140,7 +139,7 @@ export default function Trading() {
       {/* Image Preview Popup */}
       {selectedPost && selectedPost.image && (
         <>
-          {/* Backdrop - Very light transparent */}
+          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/20 z-[9999] backdrop-blur-[2px] animate-in fade-in duration-200"
             onClick={() => {
@@ -148,8 +147,8 @@ export default function Trading() {
               setZoom(1);
             }}
           />
-          
-          {/* Preview Card - Very subtle gray */}
+
+          {/* Preview Card */}
           <div className="fixed inset-0 z-[10000] flex items-center justify-center p-8 pointer-events-none">
             <div 
               className="relative bg-gray-800/60 backdrop-blur-md rounded-xl shadow-2xl border border-emerald-500/40 overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-200"
@@ -159,14 +158,9 @@ export default function Trading() {
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-emerald-500/30 bg-gray-700/25">
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-emerald-600 text-white">
-                    {selectedPost.channel}
-                  </Badge>
-                  <span className="text-sm text-gray-300">
-                    {currentIndex + 1} / {postsWithImages.length}
-                  </span>
+                  <Badge className="bg-emerald-600 text-white">{selectedPost.channel}</Badge>
+                  <span className="text-sm text-gray-300">{currentIndex + 1} / {postsWithImages.length}</span>
                 </div>
-                
                 <div className="flex items-center gap-2">
                   {/* Navigation */}
                   <button
@@ -274,71 +268,17 @@ export default function Trading() {
         {/* Header Section with Border */}
         <div className="pt-6 pb-4 px-4 md:px-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b-2 border-emerald-500/30 mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-            Trading Signals
+            trading Opportunities
           </h1>
           
-          {/* Claim instruction or Timer or Button or Already Claimed */}
-          {!walletAddress ? (
-            <div className="bg-yellow-900/30 border-2 border-yellow-500/50 text-yellow-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>🔌 Connect wallet to claim points!</span>
-            </div>
-          ) : alreadyClaimed ? (
-            <div className="bg-green-900/30 border-2 border-green-500/50 text-green-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>✅ Already claimed today!</span>
-            </div>
-          ) : !hasScrolled ? (
-            <div className="bg-emerald-900/30 border-2 border-emerald-500/50 text-emerald-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <span>📜 Scroll down to claim 35 points!</span>
-            </div>
-          ) : showClaimButton ? (
-            <Button
-              onClick={async () => {
-                if (!walletAddress) {
-                  // Prompt wallet connection
-                  if (typeof window.ethereum !== 'undefined') {
-                    try {
-                      await window.ethereum.request({ method: 'eth_requestAccounts' });
-                      toast({
-                        title: 'Wallet Connected!',
-                        description: 'You can now claim your points.',
-                      });
-                    } catch (error) {
-                      toast({
-                        title: 'Connection Failed',
-                        description: 'Please connect your wallet to claim points.',
-                        variant: 'destructive',
-                      });
-                    }
-                  } else {
-                    toast({
-                      title: 'No Wallet Found',
-                      description: 'Please install MetaMask to claim points.',
-                      variant: 'destructive',
-                    });
-                  }
-                } else {
-                  claimMutation.mutate();
-                }
-              }}
-              disabled={claimMutation.isPending}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-6 rounded-full shadow-xl border-2 border-emerald-400/50 flex-shrink-0"
-            >
-              <Gift className="h-5 w-5 mr-2" />
-              {claimMutation.isPending ? 'Claiming...' : 'Claim 35 Points!'}
-            </Button>
-          ) : (
-            <div className="bg-emerald-900/30 border-2 border-emerald-500/50 text-emerald-200 font-bold py-2 md:py-3 px-4 md:px-6 rounded-full shadow-xl flex items-center gap-2 text-sm md:text-base whitespace-nowrap">
-              <div className="w-4 h-4 md:w-5 md:h-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-              <span>Claim available in {countdown}s...</span>
-            </div>
-          )}
+          <ClaimButton section="trading" />
         </div>
 
         <div className="grid grid-cols-5 gap-6 pb-6 px-2 md:px-4">
           {posts?.map((post) => (
             <Card
               key={`${post.channel}-${post.messageId}`}
-              className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
+              className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(139,92,246,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(139,92,246,0.4)]"
             >
               {post.image && (
                 <div 
