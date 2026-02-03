@@ -38,6 +38,7 @@ jobs:
           import base64
           import os
           import requests
+          import time
           
           # Check if file exists
           if not os.path.exists('telegram_posts.json'):
@@ -55,31 +56,44 @@ jobs:
               print("⚠️ No posts to send")
               exit(0)
           
-          for post in posts:
-              if post.get('image'):
-                  img_path = 'client/public' + post['image']
-                  if os.path.exists(img_path):
-                      with open(img_path, 'rb') as img:
-                          post['imageData'] = base64.b64encode(img.read()).decode('utf-8')
+          # Don't encode images as base64 - too large
+          # Just send the image paths, Railway will serve them
           
-          payload = {
-              "secret": "${{ secrets.TELEGRAM_UPDATE_SECRET }}",
-              "posts": posts
-          }
+          # Send in batches of 100 posts
+          BATCH_SIZE = 100
+          total_batches = (len(posts) + BATCH_SIZE - 1) // BATCH_SIZE
           
-          print(f"📤 Sending {len(posts)} posts to API...")
+          print(f"📤 Sending {len(posts)} posts in {total_batches} batches...")
           
-          response = requests.post(
-              "${{ secrets.RAILWAY_API_URL }}/api/telegram/update",
-              json=payload,
-              headers={"Content-Type": "application/json"}
-          )
+          for i in range(0, len(posts), BATCH_SIZE):
+              batch = posts[i:i + BATCH_SIZE]
+              batch_num = (i // BATCH_SIZE) + 1
+              
+              payload = {
+                  "secret": "${{ secrets.TELEGRAM_UPDATE_SECRET }}",
+                  "posts": batch
+              }
+              
+              print(f"\n📦 Batch {batch_num}/{total_batches}: Sending {len(batch)} posts...")
+              
+              response = requests.post(
+                  "${{ secrets.RAILWAY_API_URL }}/api/telegram/update",
+                  json=payload,
+                  headers={"Content-Type": "application/json"},
+                  timeout=30
+              )
+              
+              print(f"   Status: {response.status_code}")
+              
+              if response.status_code != 200:
+                  print(f"   ❌ Error: {response.text}")
+                  exit(1)
+              else:
+                  print(f"   ✅ Batch sent successfully")
+              
+              # Small delay between batches
+              if i + BATCH_SIZE < len(posts):
+                  time.sleep(1)
           
-          print(f"Status: {response.status_code}")
-          print(f"Response: {response.text}")
-          
-          if response.status_code != 200:
-              exit(1)
-          
-          print("✅ Data sent successfully!")
+          print(f"\n✅ All {len(posts)} posts sent successfully!")
           EOF
