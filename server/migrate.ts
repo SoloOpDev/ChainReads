@@ -85,14 +85,27 @@ export async function runMigrations() {
         date TIMESTAMP NOT NULL,
         image TEXT,
         image_data TEXT,
+        image_file_id VARCHAR(100),
         created_at TIMESTAMP NOT NULL DEFAULT now()
       );
 
       CREATE INDEX IF NOT EXISTS idx_telegram_category ON telegram_posts(category);
       CREATE INDEX IF NOT EXISTS idx_telegram_date ON telegram_posts(date DESC);
+      CREATE INDEX IF NOT EXISTS idx_telegram_posts_image_file_id ON telegram_posts(image_file_id) WHERE image_file_id IS NOT NULL;
     `);
 
     console.log('[MIGRATE] ✅ Database migrations completed successfully');
+
+    // Add image_file_id column if it doesn't exist (for existing deployments)
+    try {
+      await db.execute(sql`
+        ALTER TABLE telegram_posts 
+        ADD COLUMN IF NOT EXISTS image_file_id VARCHAR(100)
+      `);
+      console.log('[MIGRATE] ✅ Added image_file_id column to telegram_posts');
+    } catch (alterError) {
+      console.log('[MIGRATE] ⚠️ Column image_file_id might already exist');
+    }
 
     // Auto-cleanup: Keep only last 7 days of history
     try {
