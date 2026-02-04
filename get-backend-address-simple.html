@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Get Backend Wallet Address</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #444;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border: 2px solid #4CAF50;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .address {
+            font-family: monospace;
+            font-size: 18px;
+            color: #4CAF50;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        .error {
+            color: #f44336;
+            margin-top: 10px;
+        }
+        .info {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .copy-btn {
+            background: #2196F3;
+            padding: 8px 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .copy-btn:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Get Backend Wallet Address</h1>
+        
+        <div class="info">
+            <strong>📋 Instructions:</strong><br>
+            1. Go to Railway dashboard<br>
+            2. Find your BACKEND_WALLET_PRIVATE_KEY variable<br>
+            3. Copy the private key (should be 64 hex characters)<br>
+            4. Paste it below (it stays in your browser, never sent anywhere)
+        </div>
+
+        <label for="privateKey"><strong>Private Key:</strong></label>
+        <input 
+            type="password" 
+            id="privateKey" 
+            placeholder="0x1234567890abcdef... (64 hex characters)"
+        >
+        
+        <button onclick="getAddress()">Get Wallet Address</button>
+        
+        <div id="result" class="result">
+            <h3>✅ Backend Wallet Address:</h3>
+            <div class="address" id="address"></div>
+            <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #444;">
+                <strong>Next Steps:</strong><br>
+                1. Copy the address above<br>
+                2. Go to <a href="https://basescan.org/address/0xE42C06F57dac0D1bd1c794e2c495504A9CcD28B5#writeContract" target="_blank" style="color: #4CAF50;">BaseScan Contract</a><br>
+                3. Connect your owner wallet<br>
+                4. Find "setBackend" function<br>
+                5. Paste this address and click "Write"
+            </div>
+        </div>
+        
+        <div id="error" class="error"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script>
+        function getAddress() {
+            const privateKey = document.getElementById('privateKey').value.trim();
+            const resultDiv = document.getElementById('result');
+            const errorDiv = document.getElementById('error');
+            const addressDiv = document.getElementById('address');
+            
+            // Clear previous results
+            resultDiv.classList.remove('show');
+            errorDiv.textContent = '';
+            
+            if (!privateKey) {
+                errorDiv.textContent = '❌ Please enter a private key';
+                return;
+            }
+            
+            try {
+                // Add 0x prefix if missing
+                const key = privateKey.startsWith('0x') ? privateKey : '0x' + privateKey;
+                
+                // Validate format
+                if (!/^0x[a-f0-9]{64}$/i.test(key)) {
+                    throw new Error('Invalid private key format. Must be 64 hex characters.');
+                }
+                
+                // Create wallet
+                const wallet = new ethers.Wallet(key);
+                
+                // Show result
+                addressDiv.textContent = wallet.address;
+                resultDiv.classList.add('show');
+                
+                // Store for copy function
+                window.currentAddress = wallet.address;
+                
+            } catch (error) {
+                errorDiv.textContent = '❌ Error: ' + error.message;
+            }
+        }
+        
+        function copyAddress() {
+            if (window.currentAddress) {
+                navigator.clipboard.writeText(window.currentAddress).then(() => {
+                    const btn = event.target;
+                    const originalText = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                });
+            }
+        }
+        
+        // Allow Enter key to submit
+        document.getElementById('privateKey').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getAddress();
+            }
+        });
+    </script>
+</body>
+</html>

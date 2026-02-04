@@ -1,0 +1,31 @@
+🔧 EXCHANGE FIX - QUICK STEPS
+
+1. PUSH TO RAILWAY (IMPORTANT - DO THIS FIRST):
+   git add .
+   git commit -m "fix: exchange error logging"
+   git push
+   (Wait 2-3 minutes for deploy)
+
+2. GET BACKEND ADDRESS:
+   - Open get-backend-address-simple.html in browser
+   - Copy your BACKEND_WALLET_PRIVATE_KEY from Railway
+   - Paste it in the tool
+   - Click "Get Wallet Address"
+   - Copy the address shown
+
+3. SET IN CONTRACT:
+   - Go to: https://basescan.org/address/0xE42C06F57dac0D1bd1c794e2c495504A9CcD28B5#writeContract
+   - Connect owner wallet (the one that deployed contract)
+   - Find "setBackend" function
+   - Paste address from step 2
+   - Click "Write" and confirm
+
+4. TEST:
+   - Go to your site
+   - Try exchanging 300 points
+   - Should work! 🎉
+
+NEED HELP? Read FIX_EXCHANGE_NOW.md for detailed guide.
+
+NOTE: The HTML tool keeps your private key in your browser only.
+      It never sends it anywhere - 100% safe and offline.

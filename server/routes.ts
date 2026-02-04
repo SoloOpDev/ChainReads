@@ -1463,34 +1463,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const privateKey = process.env.BACKEND_WALLET_PRIVATE_KEY;
     
     if (!privateKey) {
+      console.error('[EXCHANGE] ❌ BACKEND_WALLET_PRIVATE_KEY not set in environment');
       safeLog('EXCHANGE', 'Backend wallet not configured');
-      return res.status(500).json({ error: "Service temporarily unavailable" });
+      return res.status(500).json({ 
+        error: "Backend wallet not configured. Please set BACKEND_WALLET_PRIVATE_KEY in Railway environment variables." 
+      });
     }
     
     if (!privateKey.match(/^(0x)?[a-f0-9]{64}$/i)) {
+      console.error('[EXCHANGE] ❌ Invalid private key format. Must be 64 hex characters (with or without 0x prefix)');
       safeLog('EXCHANGE', 'Invalid private key format');
-      return res.status(500).json({ error: "Service configuration error" });
+      return res.status(500).json({ 
+        error: "Backend wallet configuration error. Private key format is invalid." 
+      });
     }
 
-    const wallet = new ethers.Wallet(privateKey);
-    
-    const messageHash = ethers.solidityPackedKeccak256(
-      ['address', 'uint256', 'bytes32', 'uint256'],
-      [walletAddress, points, nonce, expiration]
-    );
+    try {
+      const wallet = new ethers.Wallet(privateKey);
+      console.log('[EXCHANGE] ✅ Backend wallet address:', wallet.address);
+      
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['address', 'uint256', 'bytes32', 'uint256'],
+        [walletAddress, points, nonce, expiration]
+      );
 
-    const signingKey = new ethers.SigningKey(privateKey);
-    const sig = signingKey.sign(messageHash);
-    const signature = ethers.Signature.from(sig).serialized;
+      // Add Ethereum signed message prefix (contract expects this)
+      const ethSignedMessageHash = ethers.hashMessage(ethers.getBytes(messageHash));
+      
+      const signingKey = new ethers.SigningKey(privateKey);
+      const sig = signingKey.sign(ethSignedMessageHash);
+      const signature = ethers.Signature.from(sig).serialized;
 
-    safeLog('EXCHANGE', 'Signature generated');
+      safeLog('EXCHANGE', 'Signature generated successfully');
+      console.log('[EXCHANGE] ✅ Signature generated for', walletAddress);
 
-    res.json({
-      nonce,
-      expiration,
-      signature,
-      message: "Signature generated successfully"
-    });
+      res.json({
+        nonce,
+        expiration,
+        signature,
+        backendAddress: wallet.address, // Include backend address in response for debugging
+        message: "Signature generated successfully"
+      });
+    } catch (error: any) {
+      console.error('[EXCHANGE] ❌ Error generating signature:', error);
+      safeLog('EXCHANGE', `Signature generation failed: ${error.message}`);
+      return res.status(500).json({ 
+        error: "Failed to generate signature",
+        details: error.message 
+      });
+    }
   }));
 
   // Confirm exchange and deduct points (called after blockchain confirmation)
