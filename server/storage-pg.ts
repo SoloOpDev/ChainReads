@@ -312,8 +312,8 @@ export class PostgresStorage implements IStorage {
         }
       }
       
-      # Auto-cleanup: Keep only latest 100 posts per category
-      # Run cleanup after inserts to avoid race conditions
+      // Auto-cleanup: Keep only latest 200 posts per category
+      // Run cleanup after inserts to avoid race conditions
       await db.execute(sql`
         DELETE FROM telegram_posts 
         WHERE category = 'trading' 
