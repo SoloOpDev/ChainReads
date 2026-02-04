@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Telegram Channel Fetcher - ENHANCED VERSION with ImgBB Upload
+Telegram Channel Fetcher - Database Storage Version
 Fetches posts from multiple Telegram channels and saves to JSON
 FILTERS: Replies, Forwards, Duplicates, Old Posts, Short Text
-Images uploaded to ImgBB CDN (no Railway redeployments needed!)
+Images stored as base64 in database (no external CDN needed!)
 """
 
 import json
@@ -19,7 +19,6 @@ import base64
 API_ID = os.getenv('TELEGRAM_API_ID')
 API_HASH = os.getenv('TELEGRAM_API_HASH')
 SESSION_STRING = os.getenv('TELEGRAM_SESSION', '')
-IMGBB_API_KEY = os.getenv('IMGBB_API_KEY', '')
 
 # Get channels from environment variables
 TRADING_CHANNELS_ENV = os.getenv('TELEGRAM_TRADING_CHANNELS', '')
@@ -39,43 +38,16 @@ if not API_ID or not API_HASH:
     print("❌ Missing Telegram API credentials!")
     exit(1)
 
-if not IMGBB_API_KEY:
-    print("❌ Missing IMGBB_API_KEY!")
-    exit(1)
-
 if not TRADING_CHANNELS and not AIRDROP_CHANNELS:
     print("❌ No channels specified!")
     exit(1)
 
 def upload_to_imgbb(filepath):
-    """Upload image to ImgBB and return permanent URL"""
-    try:
-        with open(filepath, 'rb') as f:
-            image_data = base64.b64encode(f.read()).decode('utf-8')
-        
-        response = requests.post(
-            'https://api.imgbb.com/1/upload',
-            data={
-                'key': IMGBB_API_KEY,
-                'image': image_data,
-            },
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            url = data['data']['url']
-            print(f"    ✅ Uploaded to ImgBB: {url}")
-            return url
-        else:
-            print(f"    ❌ ImgBB upload failed: {response.status_code}")
-            return None
-    except Exception as e:
-        print(f"    ❌ Error uploading to ImgBB: {e}")
-        return None
+    """DEPRECATED - No longer using ImgBB, storing images in database instead"""
+    pass
 
 async def download_media(client, message, channel_name):
-    """Download media from message, upload to ImgBB, and return URL"""
+    """Download media from message and return base64 data for database storage"""
     if not message.media:
         return None
     
@@ -96,7 +68,7 @@ async def download_media(client, message, channel_name):
                 filename += f'.{ext}'
             elif 'video' in mime:
                 print(f"  ⏭️  Skipping video: {filename}")
-                return None  # Skip videos (ImgBB doesn't support videos well)
+                return None  # Skip videos
             else:
                 return None
         else:
@@ -112,8 +84,9 @@ async def download_media(client, message, channel_name):
                 timeout=30
             )
             
-            # Upload to ImgBB
-            url = upload_to_imgbb(filepath)
+            # Read file and convert to base64 for database storage
+            with open(filepath, 'rb') as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
             
             # Delete temp file
             try:
@@ -121,7 +94,8 @@ async def download_media(client, message, channel_name):
             except:
                 pass
             
-            return url
+            print(f"    ✅ Converted to base64 ({len(image_data)} chars)")
+            return image_data  # Return base64 string instead of URL
                 
         except asyncio.TimeoutError:
             print(f"  ⏱️  Timeout downloading {filename}, skipping")
@@ -200,10 +174,10 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                     stats['too_short'] += 1
                     continue
             
-            # Download media if present and upload to ImgBB
-            media_url = None
+            # Download media if present and convert to base64
+            image_data = None
             if msg.media:
-                media_url = await download_media(client, msg, channel_name)
+                image_data = await download_media(client, msg, channel_name)
             
             post = {
                 'id': post_id,
@@ -212,7 +186,8 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                 'category': category,
                 'text': msg.message or 'No text',  # Ensure text is never empty
                 'date': msg.date.isoformat(),
-                'image': media_url,  # ImgBB URL or None
+                'image': None,  # No longer using ImgBB URLs
+                'imageData': image_data,  # Store base64 in database
                 'video': None,  # We skip videos for now
                 'hasMedia': msg.media is not None,
                 'views': msg.views or 0,
