@@ -106,6 +106,8 @@ export function ConvertModal({ isOpen, onClose }: ConvertModalProps) {
   
   const { isLoading: isConfirming, isSuccess: isConfirmed, error: confirmError, status } = useWaitForTransactionReceipt({
     hash,
+    confirmations: 1, // Wait for 1 confirmation
+    timeout: 60_000, // 60 second timeout (Base is fast but give it time)
   });
 
   // Log transaction status
@@ -130,16 +132,28 @@ export function ConvertModal({ isOpen, onClose }: ConvertModalProps) {
   // Handle transaction failure
   useEffect(() => {
     if (status === 'error' && isExchanging) {
-      console.error('❌ Transaction reverted on blockchain');
+      console.error('❌ Transaction error:', confirmError);
+      
+      // Check if it's a timeout error
+      if (confirmError?.message?.includes('timeout') || confirmError?.message?.includes('timed out')) {
+        console.log('⏰ Transaction timeout - but it may still succeed');
+        toast({
+          title: "Confirmation Timeout",
+          description: "Transaction is taking longer than expected. Check your wallet in a few moments - the tokens may still arrive.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Transaction Failed",
+          description: "The transaction was reverted by the contract. This could be due to: already exchanged today, insufficient contract balance, or invalid signature.",
+          variant: "destructive",
+        });
+      }
+      
       setIsExchanging(false);
-      toast({
-        title: "Transaction Failed",
-        description: "The transaction was reverted by the contract. This could be due to: already exchanged today, insufficient contract balance, or invalid signature.",
-        variant: "destructive",
-      });
       reset();
     }
-  }, [status, isExchanging, toast, reset]);
+  }, [status, isExchanging, confirmError, toast, reset]);
 
   // Handle write errors (user rejection, etc.) - Watch isPending changes
   useEffect(() => {
