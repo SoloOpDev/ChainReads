@@ -23,7 +23,7 @@ import crypto from 'crypto';
 // Rate limiters
 const newsLimiter = createRateLimiter({ windowMs: 60 * 1000, maxRequests: 20 }); // 20 requests per minute
 const scrapeLimiter = createRateLimiter({ windowMs: 60 * 1000, maxRequests: 10 }); // 10 requests per minute
-const exchangeSignLimiter = createRateLimiter({ windowMs: 60 * 1000, maxRequests: 5 }); // 5 requests per minute
+const exchangeSignLimiter = createRateLimiter({ windowMs: 60 * 1000, maxRequests: 20 }); // 20 requests per minute (increased from 5)
 const walletRateLimiter = createWalletRateLimiter(60 * 1000, 20); // 20 requests per minute per wallet
 
 export async function registerRoutes(app: Express): Promise<Server> {
