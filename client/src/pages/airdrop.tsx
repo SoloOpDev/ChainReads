@@ -37,7 +37,8 @@ export default function Airdrop() {
         return dateB - dateA;
       });
       
-      return postsArray;
+      // Limit to 30 most recent posts
+      return postsArray.slice(0, 30);
     },
     refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
     staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
