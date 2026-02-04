@@ -30,15 +30,18 @@ export default function Airdrop() {
       // Handle new response format { posts: [], fetchedAt: "", totalPosts: 0 }
       const postsArray = Array.isArray(data) ? data : (data.posts || []);
       
+      // FILTER: Only posts with images
+      const postsWithImages = postsArray.filter((post: TelegramPost) => post.image);
+      
       // Sort by date (newest first)
-      postsArray.sort((a: TelegramPost, b: TelegramPost) => {
+      postsWithImages.sort((a: TelegramPost, b: TelegramPost) => {
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         return dateB - dateA;
       });
       
-      // Limit to 30 most recent posts
-      return postsArray.slice(0, 30);
+      // Limit to 40 most recent posts WITH IMAGES
+      return postsWithImages.slice(0, 40);
     },
     refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
     staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes

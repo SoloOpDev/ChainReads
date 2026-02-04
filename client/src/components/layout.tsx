@@ -32,7 +32,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           if (!res.ok) return [];
           const data = await res.json();
           const postsArray = Array.isArray(data) ? data : (data.posts || []);
-          return postsArray.slice(0, 30);
+          const postsWithImages = postsArray.filter((post: any) => post.image);
+          return postsWithImages.slice(0, 40);
         },
         staleTime: 5 * 60 * 1000,
       });
@@ -44,7 +45,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           if (!res.ok) return [];
           const data = await res.json();
           const postsArray = Array.isArray(data) ? data : (data.posts || []);
-          return postsArray.slice(0, 30);
+          const postsWithImages = postsArray.filter((post: any) => post.image);
+          return postsWithImages.slice(0, 40);
         },
         staleTime: 5 * 60 * 1000,
       });

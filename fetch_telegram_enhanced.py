@@ -32,7 +32,7 @@ TRADING_CHANNELS = [ch.strip() for ch in TRADING_CHANNELS_ENV.split(',') if ch.s
 AIRDROP_CHANNELS = [ch.strip() for ch in AIRDROP_CHANNELS_ENV.split(',') if ch.strip()]
 
 # Configuration
-POSTS_PER_CHANNEL = 10
+POSTS_PER_CHANNEL = 20  # Fetch 20 per channel (5 channels = 100 posts per category)
 MAX_DAYS_OLD = 7
 MIN_TEXT_LENGTH = 10
 FILTER_FORWARDS = True
@@ -325,9 +325,9 @@ async def main():
         # Sort by date (newest first)
         all_posts.sort(key=lambda x: x['date'], reverse=True)
         
-        # Limit to 30 posts per category (60 total)
-        trading_posts = [p for p in all_posts if p.get('category') == 'trading'][:30]
-        airdrop_posts = [p for p in all_posts if p.get('category') == 'airdrop'][:30]
+        # Limit to 80 posts per category (160 total) - frontend will filter to 40 with images
+        trading_posts = [p for p in all_posts if p.get('category') == 'trading'][:80]
+        airdrop_posts = [p for p in all_posts if p.get('category') == 'airdrop'][:80]
         all_posts = trading_posts + airdrop_posts
         
         # Save to JSON

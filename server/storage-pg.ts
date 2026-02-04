@@ -312,8 +312,8 @@ export class PostgresStorage implements IStorage {
         }
       }
       
-      // Auto-cleanup: Keep only latest 100 posts per category
-      // Run cleanup after inserts to avoid race conditions
+      # Auto-cleanup: Keep only latest 100 posts per category
+      # Run cleanup after inserts to avoid race conditions
       await db.execute(sql`
         DELETE FROM telegram_posts 
         WHERE category = 'trading' 
@@ -321,7 +321,7 @@ export class PostgresStorage implements IStorage {
           SELECT id FROM telegram_posts 
           WHERE category = 'trading' 
           ORDER BY date DESC 
-          LIMIT 100
+          LIMIT 200
         )
       `);
       
@@ -332,11 +332,11 @@ export class PostgresStorage implements IStorage {
           SELECT id FROM telegram_posts 
           WHERE category = 'airdrop' 
           ORDER BY date DESC 
-          LIMIT 100
+          LIMIT 200
         )
       `);
       
-      console.log('[TELEGRAM-CLEANUP] Cleaned up old posts, kept latest 100 per category');
+      console.log('[TELEGRAM-CLEANUP] Cleaned up old posts, kept latest 200 per category');
     } catch (error) {
       console.error('[TELEGRAM-UPDATE] Transaction failed:', error);
       throw error;
