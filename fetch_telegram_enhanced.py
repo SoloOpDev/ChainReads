@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Telegram Channel Fetcher - Database Storage Version
+Telegram Channel Fetcher - Lightweight Version
 Fetches posts from multiple Telegram channels and saves to JSON
 FILTERS: Replies, Forwards, Duplicates, Old Posts, Short Text
-Images stored as base64 in database (no external CDN needed!)
+NO IMAGE STORAGE - Images loaded on-demand from Telegram
 """
 
 import json
@@ -43,70 +43,12 @@ if not TRADING_CHANNELS and not AIRDROP_CHANNELS:
     exit(1)
 
 def upload_to_imgbb(filepath):
-    """DEPRECATED - No longer using ImgBB, storing images in database instead"""
+    """DEPRECATED - No longer storing images"""
     pass
 
 async def download_media(client, message, channel_name):
-    """Download media from message and return base64 data for database storage"""
-    if not message.media:
-        return None
-    
-    try:
-        # Create temp directory
-        temp_dir = 'temp_telegram'
-        os.makedirs(temp_dir, exist_ok=True)
-        
-        timestamp = int(message.date.timestamp())
-        filename = f"{channel_name}_{message.id}_{timestamp}"
-        
-        if isinstance(message.media, MessageMediaPhoto):
-            filename += '.jpg'
-        elif isinstance(message.media, MessageMediaDocument):
-            mime = message.media.document.mime_type
-            if 'image' in mime:
-                ext = mime.split('/')[-1]
-                filename += f'.{ext}'
-            elif 'video' in mime:
-                print(f"  ⏭️  Skipping video: {filename}")
-                return None  # Skip videos
-            else:
-                return None
-        else:
-            return None
-        
-        filepath = os.path.join(temp_dir, filename)
-        
-        # Download with 30-second timeout
-        print(f"  📥 Downloading: {filename}")
-        try:
-            await asyncio.wait_for(
-                client.download_media(message, filepath),
-                timeout=30
-            )
-            
-            # Read file and convert to base64 for database storage
-            with open(filepath, 'rb') as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
-            
-            # Delete temp file
-            try:
-                os.remove(filepath)
-            except:
-                pass
-            
-            print(f"    ✅ Converted to base64 ({len(image_data)} chars)")
-            return image_data  # Return base64 string instead of URL
-                
-        except asyncio.TimeoutError:
-            print(f"  ⏱️  Timeout downloading {filename}, skipping")
-            return None
-        except Exception as e:
-            print(f"  ❌ Error downloading {filename}: {e}")
-            return None
-    
-    except Exception as e:
-        print(f"  ❌ Error in download_media: {e}")
-        return None
+    """Skip media download - we don't store images anymore"""
+    return None
 
 async def fetch_channel_posts(client, channel_name, existing_ids, category):
     """Fetch posts from a single channel with enhanced filtering"""
@@ -174,22 +116,20 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                     stats['too_short'] += 1
                     continue
             
-            # Download media if present and convert to base64
-            image_data = None
-            if msg.media:
-                image_data = await download_media(client, msg, channel_name)
+            # Skip media download - just mark if it has media
+            has_media = msg.media is not None
             
             post = {
                 'id': post_id,
                 'messageId': msg.id,
                 'channel': channel_name,
                 'category': category,
-                'text': msg.message or 'No text',  # Ensure text is never empty
+                'text': msg.message or 'No text',
                 'date': msg.date.isoformat(),
-                'image': None,  # No longer using ImgBB URLs
-                'imageData': image_data,  # Store base64 in database
-                'video': None,  # We skip videos for now
-                'hasMedia': msg.media is not None,
+                'image': None,  # No image storage
+                'imageData': None,  # No image storage
+                'video': None,
+                'hasMedia': has_media,
                 'views': msg.views or 0,
             }
             posts.append(post)
