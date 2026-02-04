@@ -73,8 +73,9 @@ export const telegramPosts = pgTable("telegram_posts", {
   category: varchar("category", { length: 50 }).notNull(),
   text: text("text").notNull(),
   date: timestamp("date").notNull(),
-  image: text("image"), // Store base64 or URL
-  imageData: text("image_data"), // Store base64 encoded image
+  image: text("image"), // ImageKit CDN URL
+  imageData: text("image_data"), // Deprecated - kept for backward compatibility
+  imageFileId: varchar("image_file_id", { length: 100 }), // ImageKit file ID for cleanup
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

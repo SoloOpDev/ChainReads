@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Telegram Channel Fetcher - Lightweight Version
+Telegram Channel Fetcher - ImageKit CDN Version
 Fetches posts from multiple Telegram channels and saves to JSON
 FILTERS: Replies, Forwards, Duplicates, Old Posts, Short Text
-NO IMAGE STORAGE - Images loaded on-demand from Telegram
+Images uploaded to ImageKit CDN (20GB free storage + bandwidth)
 """
 
 import json
@@ -20,6 +20,10 @@ API_ID = os.getenv('TELEGRAM_API_ID')
 API_HASH = os.getenv('TELEGRAM_API_HASH')
 SESSION_STRING = os.getenv('TELEGRAM_SESSION', '')
 
+# ImageKit credentials
+IMAGEKIT_PRIVATE_KEY = os.getenv('IMAGEKIT_PRIVATE_KEY', '')
+IMAGEKIT_URL_ENDPOINT = os.getenv('IMAGEKIT_URL_ENDPOINT', '')
+
 # Get channels from environment variables
 TRADING_CHANNELS_ENV = os.getenv('TELEGRAM_TRADING_CHANNELS', '')
 AIRDROP_CHANNELS_ENV = os.getenv('TELEGRAM_AIRDROP_CHANNELS', '')
@@ -28,8 +32,8 @@ TRADING_CHANNELS = [ch.strip() for ch in TRADING_CHANNELS_ENV.split(',') if ch.s
 AIRDROP_CHANNELS = [ch.strip() for ch in AIRDROP_CHANNELS_ENV.split(',') if ch.strip()]
 
 # Configuration
-POSTS_PER_CHANNEL = 10  # Reduced to 10 for faster GitHub Actions
-MAX_DAYS_OLD = 7  # Only last 7 days
+POSTS_PER_CHANNEL = 10
+MAX_DAYS_OLD = 7
 MIN_TEXT_LENGTH = 10
 FILTER_FORWARDS = True
 
@@ -38,17 +42,104 @@ if not API_ID or not API_HASH:
     print("❌ Missing Telegram API credentials!")
     exit(1)
 
+if not IMAGEKIT_PRIVATE_KEY or not IMAGEKIT_URL_ENDPOINT:
+    print("❌ Missing ImageKit credentials!")
+    exit(1)
+
 if not TRADING_CHANNELS and not AIRDROP_CHANNELS:
     print("❌ No channels specified!")
     exit(1)
 
-def upload_to_imgbb(filepath):
-    """DEPRECATED - No longer storing images"""
-    pass
+def upload_to_imagekit(filepath, filename):
+    """Upload image to ImageKit and return permanent URL"""
+    try:
+        with open(filepath, 'rb') as f:
+            files = {'file': (filename, f)}
+            data = {
+                'fileName': filename,
+                'folder': '/telegram'  # Organize in folder
+            }
+            
+            response = requests.post(
+                'https://upload.imagekit.io/api/v1/files/upload',
+                files=files,
+                data=data,
+                auth=(IMAGEKIT_PRIVATE_KEY, ''),  # Private key as username, no password
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                url = data['url']
+                file_id = data['fileId']
+                print(f"    ✅ Uploaded to ImageKit: {url}")
+                return {'url': url, 'fileId': file_id}
+            else:
+                print(f"    ❌ ImageKit upload failed: {response.status_code} - {response.text}")
+                return None
+    except Exception as e:
+        print(f"    ❌ Error uploading to ImageKit: {e}")
+        return None
 
 async def download_media(client, message, channel_name):
-    """Skip media download - we don't store images anymore"""
-    return None
+    """Download media from message, upload to ImageKit, and return URL"""
+    if not message.media:
+        return None
+    
+    try:
+        # Create temp directory
+        temp_dir = 'temp_telegram'
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        timestamp = int(message.date.timestamp())
+        filename = f"{channel_name}_{message.id}_{timestamp}"
+        
+        if isinstance(message.media, MessageMediaPhoto):
+            filename += '.jpg'
+        elif isinstance(message.media, MessageMediaDocument):
+            mime = message.media.document.mime_type
+            if 'image' in mime:
+                ext = mime.split('/')[-1]
+                filename += f'.{ext}'
+            elif 'video' in mime:
+                print(f"  ⏭️  Skipping video: {filename}")
+                return None
+            else:
+                return None
+        else:
+            return None
+        
+        filepath = os.path.join(temp_dir, filename)
+        
+        # Download with 30-second timeout
+        print(f"  📥 Downloading: {filename}")
+        try:
+            await asyncio.wait_for(
+                client.download_media(message, filepath),
+                timeout=30
+            )
+            
+            # Upload to ImageKit
+            result = upload_to_imagekit(filepath, filename)
+            
+            # Delete temp file
+            try:
+                os.remove(filepath)
+            except:
+                pass
+            
+            return result
+                
+        except asyncio.TimeoutError:
+            print(f"  ⏱️  Timeout downloading {filename}, skipping")
+            return None
+        except Exception as e:
+            print(f"  ❌ Error downloading {filename}: {e}")
+            return None
+    
+    except Exception as e:
+        print(f"  ❌ Error in download_media: {e}")
+        return None
 
 async def fetch_channel_posts(client, channel_name, existing_ids, category):
     """Fetch posts from a single channel with enhanced filtering"""
@@ -116,8 +207,10 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                     stats['too_short'] += 1
                     continue
             
-            # Skip media download - just mark if it has media
-            has_media = msg.media is not None
+            # Download media if present and upload to ImageKit
+            media_result = None
+            if msg.media:
+                media_result = await download_media(client, msg, channel_name)
             
             post = {
                 'id': post_id,
@@ -126,10 +219,11 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
                 'category': category,
                 'text': msg.message or 'No text',
                 'date': msg.date.isoformat(),
-                'image': None,  # No image storage
-                'imageData': None,  # No image storage
+                'image': media_result['url'] if media_result else None,
+                'imageFileId': media_result['fileId'] if media_result else None,  # For cleanup
+                'imageData': None,  # No longer storing base64
                 'video': None,
-                'hasMedia': has_media,
+                'hasMedia': msg.media is not None,
                 'views': msg.views or 0,
             }
             posts.append(post)
@@ -163,12 +257,12 @@ async def fetch_channel_posts(client, channel_name, existing_ids, category):
 
 async def main():
     """Main function to fetch all channels"""
-    print("🚀 Starting Telegram Channel Fetcher (ENHANCED with ImgBB)")
+    print("🚀 Starting Telegram Channel Fetcher (ImageKit CDN)")
     print("=" * 60)
     print(f"📊 Trading Channels: {', '.join(TRADING_CHANNELS) if TRADING_CHANNELS else 'None'}")
     print(f"🎁 Airdrop Channels: {', '.join(AIRDROP_CHANNELS) if AIRDROP_CHANNELS else 'None'}")
     print(f"🔍 Filters: Replies, Forwards, Duplicates, Old Posts ({MAX_DAYS_OLD}d), Short Text")
-    print(f"📤 Image Upload: ImgBB CDN")
+    print(f"📤 Image Upload: ImageKit CDN (20GB free)")
     print("=" * 60)
     
     # Load existing posts to prevent duplicates
@@ -261,6 +355,9 @@ async def main():
         print(f"   🎁 Airdrop: {len([p for p in all_posts if p.get('category') == 'airdrop'])} posts")
         print(f"📝 Saved to telegram_posts.json")
         print("=" * 60)
+        
+        # Cleanup old images from ImageKit (older than 30 days)
+        await cleanup_old_images(all_posts)
     
     except Exception as e:
         print(f"\n❌ Error: {e}")
@@ -269,6 +366,53 @@ async def main():
     
     finally:
         await client.disconnect()
+
+async def cleanup_old_images(current_posts):
+    """Delete images from ImageKit that are older than 30 days"""
+    try:
+        print("\n🧹 Cleaning up old images from ImageKit...")
+        
+        # Get all file IDs from current posts
+        current_file_ids = set()
+        for post in current_posts:
+            if post.get('imageFileId'):
+                current_file_ids.add(post['imageFileId'])
+        
+        # List all files in ImageKit /telegram folder
+        response = requests.get(
+            'https://api.imagekit.io/v1/files',
+            params={'path': '/telegram', 'limit': 1000},
+            auth=(IMAGEKIT_PRIVATE_KEY, ''),
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            files = response.json()
+            deleted_count = 0
+            
+            for file in files:
+                file_id = file['fileId']
+                created_at = datetime.fromisoformat(file['createdAt'].replace('Z', '+00:00'))
+                age_days = (datetime.now(created_at.tzinfo) - created_at).days
+                
+                # Delete if older than 30 days AND not in current posts
+                if age_days > 30 and file_id not in current_file_ids:
+                    delete_response = requests.delete(
+                        f'https://api.imagekit.io/v1/files/{file_id}',
+                        auth=(IMAGEKIT_PRIVATE_KEY, ''),
+                        timeout=10
+                    )
+                    
+                    if delete_response.status_code == 204:
+                        deleted_count += 1
+                        print(f"  🗑️  Deleted: {file['name']} (age: {age_days} days)")
+            
+            print(f"✅ Cleanup complete: Deleted {deleted_count} old images")
+        else:
+            print(f"⚠️  Could not list ImageKit files: {response.status_code}")
+    
+    except Exception as e:
+        print(f"⚠️  Cleanup failed: {e}")
 
 if __name__ == '__main__':
     asyncio.run(main())

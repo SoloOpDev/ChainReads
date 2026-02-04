@@ -258,6 +258,7 @@ export class PostgresStorage implements IStorage {
       date: telegramPosts.date,
       image: telegramPosts.image,
       imageData: telegramPosts.imageData,
+      imageFileId: telegramPosts.imageFileId,
       createdAt: telegramPosts.createdAt,
     })
       .from(telegramPosts)
@@ -292,6 +293,7 @@ export class PostgresStorage implements IStorage {
                 date: new Date(post.date),
                 image: post.image || null,
                 imageData: post.imageData || null,
+                imageFileId: post.imageFileId || null,
               })
               .onConflictDoUpdate({
                 target: telegramPosts.id,
@@ -299,6 +301,7 @@ export class PostgresStorage implements IStorage {
                   text: post.text,
                   image: post.image || null,
                   imageData: post.imageData || null,
+                  imageFileId: post.imageFileId || null,
                   date: new Date(post.date),
                 }
               });

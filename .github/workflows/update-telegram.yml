@@ -30,7 +30,8 @@ jobs:
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
           TELEGRAM_TRADING_CHANNELS: ${{ secrets.TELEGRAM_TRADING_CHANNELS }}
           TELEGRAM_AIRDROP_CHANNELS: ${{ secrets.TELEGRAM_AIRDROP_CHANNELS }}
-          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          IMAGEKIT_PRIVATE_KEY: ${{ secrets.IMAGEKIT_PRIVATE_KEY }}
+          IMAGEKIT_URL_ENDPOINT: ${{ secrets.IMAGEKIT_URL_ENDPOINT }}
           
       - name: Send data to API
         run: |
@@ -56,7 +57,9 @@ jobs:
               print("⚠️ No posts to send")
               exit(0)
           
-          # Images are now hosted on ImgBB CDN - no Railway redeployments needed!
+          # Images are now hosted on ImageKit CDN - no Railway redeployments needed!
+          # ImageKit free tier: 20GB storage + 20GB bandwidth/month
+          # With 30-day cleanup, stays within free tier forever
           
           # Send in batches of 100 posts
           BATCH_SIZE = 100
