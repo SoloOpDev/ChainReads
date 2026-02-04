@@ -14,6 +14,17 @@ export async function runMigrations() {
   try {
     console.log('[MIGRATE] Running database migrations...');
 
+    // Add image_file_id column first (for existing deployments)
+    try {
+      await db.execute(sql`
+        ALTER TABLE telegram_posts 
+        ADD COLUMN IF NOT EXISTS image_file_id VARCHAR(100)
+      `);
+      console.log('[MIGRATE] ✅ Added image_file_id column to telegram_posts');
+    } catch (alterError) {
+      console.log('[MIGRATE] ⚠️ Column image_file_id might already exist or table does not exist yet');
+    }
+
     // Create tables if they don't exist
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS users (
@@ -95,17 +106,6 @@ export async function runMigrations() {
     `);
 
     console.log('[MIGRATE] ✅ Database migrations completed successfully');
-
-    // Add image_file_id column if it doesn't exist (for existing deployments)
-    try {
-      await db.execute(sql`
-        ALTER TABLE telegram_posts 
-        ADD COLUMN IF NOT EXISTS image_file_id VARCHAR(100)
-      `);
-      console.log('[MIGRATE] ✅ Added image_file_id column to telegram_posts');
-    } catch (alterError) {
-      console.log('[MIGRATE] ⚠️ Column image_file_id might already exist');
-    }
 
     // Auto-cleanup: Keep only last 7 days of history
     try {
