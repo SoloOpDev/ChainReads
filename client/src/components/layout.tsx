@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Gift, Star, Info, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,60 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const prices = useCryptoPrices();
+  const queryClient = useQueryClient();
   
   // Refs for dynamic tab measurement
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [tabMetrics, setTabMetrics] = useState({ width: 0, left: 0 });
+
+  // Prefetch data on hover
+  const prefetchData = (path: string) => {
+    if (path === '/trading') {
+      queryClient.prefetchQuery({
+        queryKey: ["/api/telegram/trading"],
+        queryFn: async () => {
+          const res = await fetch("/api/telegram/trading");
+          if (!res.ok) return [];
+          const data = await res.json();
+          const postsArray = Array.isArray(data) ? data : (data.posts || []);
+          return postsArray.slice(0, 30);
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    } else if (path === '/airdrop') {
+      queryClient.prefetchQuery({
+        queryKey: ["/api/telegram/airdrop"],
+        queryFn: async () => {
+          const res = await fetch("/api/telegram/airdrop");
+          if (!res.ok) return [];
+          const data = await res.json();
+          const postsArray = Array.isArray(data) ? data : (data.posts || []);
+          return postsArray.slice(0, 30);
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    } else if (path === '/academic') {
+      queryClient.prefetchQuery({
+        queryKey: ["/api/academic"],
+        queryFn: async () => {
+          const res = await fetch("/api/academic");
+          if (!res.ok) return { articles: [] };
+          return await res.json();
+        },
+        staleTime: 10 * 60 * 1000,
+      });
+    } else if (path === '/') {
+      queryClient.prefetchQuery({
+        queryKey: ["/api/news"],
+        queryFn: async () => {
+          const res = await fetch("/api/news");
+          if (!res.ok) return { results: [] };
+          return await res.json();
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  };
 
   // Check if we're on an article page
   const isArticlePage = location.startsWith('/article/');
@@ -351,7 +401,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <div className="absolute inset-y-1 bg-white/20 backdrop-blur-lg rounded-full shadow-lg border border-white/30 transition-all duration-300 ease-out" style={{ width: `${tabMetrics.width}px`, left: `${tabMetrics.left}px` }} />
                   )}
                   {tabs.map((tab, index) => (
-                    <button key={tab.path} ref={(el) => (tabRefs.current[index] = el)} onClick={() => setLocation(tab.path)} className="px-2 h-6 text-white text-[10px] font-semibold transition-all duration-200 rounded-full hover:bg-white/5 relative z-10 flex items-center justify-center leading-none whitespace-nowrap">
+                    <button key={tab.path} ref={(el) => (tabRefs.current[index] = el)} onClick={() => setLocation(tab.path)} onMouseEnter={() => prefetchData(tab.path)} className="px-2 h-6 text-white text-[10px] font-semibold transition-all duration-200 rounded-full hover:bg-white/5 relative z-10 flex items-center justify-center leading-none whitespace-nowrap">
                       {tab.label}
                     </button>
                   ))}
@@ -402,6 +452,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   key={tab.path}
                   ref={(el) => (tabRefs.current[index] = el)}
                   onClick={() => setLocation(tab.path)}
+                  onMouseEnter={() => prefetchData(tab.path)}
                   className="px-4 lg:px-5 h-9 text-white hover:text-white text-sm font-semibold transition-all duration-200 rounded-full hover:bg-white/5 relative z-10 flex items-center justify-center leading-none whitespace-nowrap"
                 >
                   {tab.label}
