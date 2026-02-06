@@ -61,8 +61,8 @@ jobs:
           # ImageKit free tier: 20GB storage + 20GB bandwidth/month
           # With 30-day cleanup, stays within free tier forever
           
-          # Send in batches of 50 posts
-          BATCH_SIZE = 50
+          # Send in batches of 20 posts
+          BATCH_SIZE = 20
           total_batches = (len(posts) + BATCH_SIZE - 1) // BATCH_SIZE
           
           print(f"📤 Sending {len(posts)} posts in {total_batches} batches...")
@@ -82,7 +82,7 @@ jobs:
                   "${{ secrets.RAILWAY_API_URL }}/api/telegram/update",
                   json=payload,
                   headers={"Content-Type": "application/json"},
-                  timeout=30
+                  timeout=60
               )
               
               print(f"   Status: {response.status_code}")
