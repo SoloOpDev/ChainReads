@@ -20,10 +20,32 @@ jobs:
           
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install telethon python-dotenv cryptg requests
           
+      - name: Verify environment variables
+        run: |
+          echo "Checking required environment variables..."
+          if [ -z "${{ secrets.TELEGRAM_API_ID }}" ]; then
+            echo "❌ TELEGRAM_API_ID is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TELEGRAM_API_HASH }}" ]; then
+            echo "❌ TELEGRAM_API_HASH is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TELEGRAM_SESSION }}" ]; then
+            echo "❌ TELEGRAM_SESSION is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.TELEGRAM_UPDATE_SECRET }}" ]; then
+            echo "❌ TELEGRAM_UPDATE_SECRET is missing"
+            exit 1
+          fi
+          echo "✅ All required environment variables are present"
+          
       - name: Fetch Telegram data
-        run: python3 fetch_telegram_enhanced.py
+        run: python fetch_telegram_enhanced.py
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
@@ -33,69 +55,154 @@ jobs:
           IMAGEKIT_PRIVATE_KEY: ${{ secrets.IMAGEKIT_PRIVATE_KEY }}
           IMAGEKIT_URL_ENDPOINT: ${{ secrets.IMAGEKIT_URL_ENDPOINT }}
           
-      - name: Send data to API
+      - name: Verify data file exists
         run: |
-          python3 << 'EOF'
+          if [ ! -f "telegram_posts.json" ]; then
+            echo "❌ telegram_posts.json was not created by the fetch script"
+            echo "Files in current directory:"
+            ls -la
+            exit 1
+          fi
+          
+          # Check if file has valid JSON
+          if ! python -m json.tool telegram_posts.json > /dev/null 2>&1; then
+            echo "❌ telegram_posts.json contains invalid JSON"
+            exit 1
+          fi
+          
+          # Check if file has posts
+          POST_COUNT=$(python -c "import json; data=json.load(open('telegram_posts.json')); print(len(data.get('results', [])))")
+          echo "📊 Found $POST_COUNT posts in telegram_posts.json"
+          
+          if [ "$POST_COUNT" -eq 0 ]; then
+            echo "⚠️ No posts found, skipping API upload"
+            exit 0
+          fi
+          
+      - name: Create API upload script
+        run: |
+          cat > upload_to_api.py << 'SCRIPT_EOF'
+          #!/usr/bin/env python3
           import json
           import os
           import requests
           import time
+          import sys
+          from urllib.parse import urlparse
           
-          # Check if file exists
-          if not os.path.exists('telegram_posts.json'):
-              print("❌ telegram_posts.json not found!")
-              print("Files in current directory:")
-              print(os.listdir('.'))
-              exit(1)
-          
-          with open('telegram_posts.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-          
-          posts = data.get('results', [])
-          
-          if not posts:
-              print("⚠️ No posts to send")
-              exit(0)
-          
-          # Images are now hosted on ImageKit CDN - no Railway redeployments needed!
-          # ImageKit free tier: 20GB storage + 20GB bandwidth/month
-          # With 30-day cleanup, stays within free tier forever
-          
-          # Send in batches of 20 posts
-          BATCH_SIZE = 20
-          total_batches = (len(posts) + BATCH_SIZE - 1) // BATCH_SIZE
-          
-          print(f"📤 Sending {len(posts)} posts in {total_batches} batches...")
-          
-          for i in range(0, len(posts), BATCH_SIZE):
-              batch = posts[i:i + BATCH_SIZE]
-              batch_num = (i // BATCH_SIZE) + 1
+          def main():
+              # Validate environment variables
+              api_url = os.environ.get('API_URL')
+              update_secret = os.environ.get('UPDATE_SECRET')
               
-              payload = {
-                  "secret": "${{ secrets.TELEGRAM_UPDATE_SECRET }}",
-                  "posts": batch
-              }
+              if not api_url:
+                  print("❌ API_URL environment variable is missing")
+                  sys.exit(1)
               
-              print(f"\n📦 Batch {batch_num}/{total_batches}: Sending {len(batch)} posts...")
+              if not update_secret:
+                  print("❌ UPDATE_SECRET environment variable is missing")
+                  sys.exit(1)
               
-              response = requests.post(
-                  "https://chainreads.pages.dev/api/telegram/update",
-                  json=payload,
-                  headers={"Content-Type": "application/json"},
-                  timeout=60
-              )
+              # Validate URL format
+              parsed_url = urlparse(api_url)
+              if not parsed_url.scheme or not parsed_url.netloc:
+                  print(f"❌ Invalid API URL format: {api_url}")
+                  sys.exit(1)
               
-              print(f"   Status: {response.status_code}")
+              print(f"🎯 API Endpoint: {api_url}")
+              print(f"🔑 Secret length: {len(update_secret)} characters")
               
-              if response.status_code != 200:
-                  print(f"   ❌ Error: {response.text}")
-                  exit(1)
+              # Load and validate data file
+              try:
+                  with open('telegram_posts.json', 'r', encoding='utf-8') as f:
+                      data = json.load(f)
+              except FileNotFoundError:
+                  print("❌ telegram_posts.json not found")
+                  sys.exit(1)
+              except json.JSONDecodeError as e:
+                  print(f"❌ Invalid JSON in telegram_posts.json: {e}")
+                  sys.exit(1)
+              
+              posts = data.get('results', [])
+              
+              if not posts:
+                  print("⚠️ No posts to send")
+                  return
+              
+              if not isinstance(posts, list):
+                  print("❌ Posts data is not a list")
+                  sys.exit(1)
+              
+              print(f"📤 Preparing to send {len(posts)} posts...")
+              
+              # Send in batches
+              BATCH_SIZE = 20
+              total_batches = (len(posts) + BATCH_SIZE - 1) // BATCH_SIZE
+              successful_batches = 0
+              
+              for i in range(0, len(posts), BATCH_SIZE):
+                  batch = posts[i:i + BATCH_SIZE]
+                  batch_num = (i // BATCH_SIZE) + 1
+                  
+                  payload = {
+                      "secret": update_secret,
+                      "posts": batch
+                  }
+                  
+                  print(f"\n📦 Batch {batch_num}/{total_batches}: Sending {len(batch)} posts...")
+                  
+                  try:
+                      response = requests.post(
+                          api_url,
+                          json=payload,
+                          headers={"Content-Type": "application/json"},
+                          timeout=60
+                      )
+                      
+                      print(f"   📡 Status: {response.status_code}")
+                      
+                      if response.status_code == 200:
+                          print(f"   ✅ Batch {batch_num} sent successfully")
+                          successful_batches += 1
+                      else:
+                          print(f"   ❌ Batch {batch_num} failed: {response.text}")
+                          # Continue with other batches instead of failing completely
+                          
+                  except requests.exceptions.Timeout:
+                      print(f"   ⏱️ Batch {batch_num} timed out")
+                  except requests.exceptions.ConnectionError:
+                      print(f"   🔌 Batch {batch_num} connection error")
+                  except requests.exceptions.RequestException as e:
+                      print(f"   ❌ Batch {batch_num} request error: {e}")
+                  
+                  # Small delay between batches
+                  if i + BATCH_SIZE < len(posts):
+                      time.sleep(2)
+              
+              print(f"\n📊 Summary: {successful_batches}/{total_batches} batches sent successfully")
+              
+              if successful_batches == 0:
+                  print("❌ No batches were sent successfully")
+                  sys.exit(1)
+              elif successful_batches < total_batches:
+                  print("⚠️ Some batches failed, but continuing...")
               else:
-                  print(f"   ✅ Batch sent successfully")
-              
-              # Small delay between batches
-              if i + BATCH_SIZE < len(posts):
-                  time.sleep(1)
+                  print("✅ All batches sent successfully!")
           
-          print(f"\n✅ All {len(posts)} posts sent successfully!")
-          EOF
+          if __name__ == '__main__':
+              main()
+          SCRIPT_EOF
+          
+      - name: Send data to API
+        env:
+          API_URL: https://chainreads.pages.dev/api/telegram/update
+          UPDATE_SECRET: ${{ secrets.TELEGRAM_UPDATE_SECRET }}
+        run: |
+          python upload_to_api.py
+          
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          rm -f upload_to_api.py
+          rm -f telegram_posts.json
+          rm -rf temp_telegram/
