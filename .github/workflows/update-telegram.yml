@@ -79,7 +79,7 @@ jobs:
               print(f"\n📦 Batch {batch_num}/{total_batches}: Sending {len(batch)} posts...")
               
               response = requests.post(
-                  "https://baa97325.chainreads.pages.dev/api/telegram/update",
+                  "https://chainreads.pages.dev/api/telegram/update",
                   json=payload,
                   headers={"Content-Type": "application/json"},
                   timeout=60
