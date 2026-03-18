@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { Eye, X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from "lucide-react";
 import { ClaimButton } from "@/components/claim-button";
@@ -15,7 +16,7 @@ interface TelegramPost {
   views: number;
 }
 
-export default function trading() {
+export default function Trading() {
   const [selectedPost, setSelectedPost] = useState<TelegramPost | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
@@ -24,20 +25,24 @@ export default function trading() {
     queryKey: ["/api/telegram/trading"],
     queryFn: async () => {
       const res = await fetch("/api/telegram/trading");
-      if (!res.ok) throw new Error("Failed to fetch trading opportunities");
+      if (!res.ok) throw new Error("Failed to fetch trading signals");
       const data = await res.json();
       
       // Handle new response format { posts: [], fetchedAt: "", totalPosts: 0 }
       const postsArray = Array.isArray(data) ? data : (data.posts || []);
       
+      // FILTER: Only posts with images
+      const postsWithImages = postsArray.filter((post: TelegramPost) => post.image);
+      
       // Sort by date (newest first)
-      postsArray.sort((a: TelegramPost, b: TelegramPost) => {
+      postsWithImages.sort((a: TelegramPost, b: TelegramPost) => {
         const dateA = new Date(a.date).getTime();
         const dateB = new Date(b.date).getTime();
         return dateB - dateA;
       });
       
-      return postsArray;
+      // Limit to 40 most recent posts WITH IMAGES
+      return postsWithImages.slice(0, 40);
     },
     refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
     staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
@@ -117,7 +122,7 @@ export default function trading() {
         <div className="relative z-10">
           <div className="pt-6 pb-4" style={{ paddingLeft: '15px', paddingRight: '15px' }}>
             <h1 className="text-3xl font-bold mb-6 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent border-b-2 border-emerald-500/30 pb-4">
-              trading Opportunities
+              Trading Signals
             </h1>
           </div>
           <div className="grid grid-cols-5 gap-6" style={{ paddingLeft: '8px', paddingRight: '8px' }}>
@@ -268,7 +273,7 @@ export default function trading() {
         {/* Header Section with Border */}
         <div className="pt-6 pb-4 px-4 md:px-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b-2 border-emerald-500/30 mb-6">
           <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-            trading Opportunities
+            Trading Signals
           </h1>
           
           <ClaimButton section="trading" />
@@ -278,7 +283,7 @@ export default function trading() {
           {posts?.map((post) => (
             <Card
               key={`${post.channel}-${post.messageId}`}
-              className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(139,92,246,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(139,92,246,0.4)]"
+              className="flex flex-col h-[380px] overflow-hidden transition-all duration-300 backdrop-blur-md bg-emerald-900/10 border-2 border-emerald-500/40 hover:border-emerald-400/70 rounded-xl hover:-translate-y-2 shadow-[0_8px_16px_rgba(0,0,0,0.4),0_4px_8px_rgba(16,185,129,0.2)] hover:shadow-[0_16px_32px_rgba(0,0,0,0.6),0_8px_16px_rgba(16,185,129,0.4)]"
             >
               {post.image && (
                 <div 

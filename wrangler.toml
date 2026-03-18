@@ -1,0 +1,73 @@
+name = "chainreads"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Pages configuration
+pages_build_output_dir = "dist/public"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "chainreads-db"
+database_id = "5f487331-b917-4ecf-89f3-14a00b3167d5"
+
+# KV namespace for sessions and cache
+[[kv_namespaces]]
+binding = "KV"
+id = "9edbaeb1482e4b53aa9e381cbc139fe9"
+
+# R2 bucket for image storage (commented out until R2 is enabled)
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "chainreads-images"
+
+# Environment variables
+[env.production.vars]
+ENVIRONMENT = "production"
+VITE_CHAIN_ID = "8453"
+VITE_RPC_URL = "https://mainnet.base.org"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "chainreads-db"
+database_id = "5f487331-b917-4ecf-89f3-14a00b3167d5"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "9edbaeb1482e4b53aa9e381cbc139fe9"
+
+# [[env.production.r2_buckets]]
+# binding = "R2"
+# bucket_name = "chainreads-images"
+
+# Secrets (set via wrangler secret put)
+# CRYPTOPANIC_API_KEY
+# TELEGRAM_API_ID
+# TELEGRAM_API_HASH
+# TELEGRAM_PHONE
+# TELEGRAM_SESSION
+# BACKEND_WALLET_PRIVATE_KEY
+# ADMIN_SECRET
+# VITE_CONTRACT_ADDRESS
+
+# Preview environment
+[env.preview]
+compatibility_date = "2024-01-01"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "chainreads-db"
+database_id = "5f487331-b917-4ecf-89f3-14a00b3167d5"
+
+[[env.preview.kv_namespaces]]
+binding = "KV"
+id = "9edbaeb1482e4b53aa9e381cbc139fe9"
+
+# [[env.preview.r2_buckets]]
+# binding = "R2"
+# bucket_name = "chainreads-images"
+
+[env.preview.vars]
+ENVIRONMENT = "preview"
+VITE_CHAIN_ID = "8453"
+VITE_RPC_URL = "https://mainnet.base.org"

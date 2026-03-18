@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Diamond, Gift, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { CryptoPanicResponse } from "@shared/schema";
+import type { CryptoPanicResponse } from "@shared/schema-d1";
 import { queryClient as globalQueryClient } from "@/lib/queryClient";
 import { getApiUrl } from "@/lib/api";
 import { getPointsSelection } from "@/lib/points-selection";

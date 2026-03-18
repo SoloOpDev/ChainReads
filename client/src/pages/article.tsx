@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Clock, Sparkles } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
-import type { CryptoPanicResponse } from "@shared/schema";
+import type { CryptoPanicResponse } from "@shared/schema-d1";
 import { getApiUrl } from "@/lib/api";
 import { createPortal } from "react-dom";
 import { getPointsSelection } from "@/lib/points-selection";
