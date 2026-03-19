@@ -78,14 +78,16 @@ export async function onRequestGet(context: any): Promise<Response> {
     if (targetUrl.includes('coindesk.com')) {
       console.log('[SCRAPE API] Using CoinDesk-specific extraction');
       
-      // Strategy 1: Look for article body with various class names
+      // Strategy 1: Look for article body with various class names and data attributes
       const articleBodySelectors = [
         /<div[^>]*class="[^"]*articleBody[^"]*"[^>]*>(.*?)<\/div>/is,
         /<div[^>]*class="[^"]*article-body[^"]*"[^>]*>(.*?)<\/div>/is,
         /<div[^>]*class="[^"]*content-body[^"]*"[^>]*>(.*?)<\/div>/is,
         /<div[^>]*class="[^"]*post-content[^"]*"[^>]*>(.*?)<\/div>/is,
         /<div[^>]*data-module="ArticleBody"[^>]*>(.*?)<\/div>/is,
-        /<div[^>]*data-testid="article-body"[^>]*>(.*?)<\/div>/is
+        /<div[^>]*data-testid="article-body"[^>]*>(.*?)<\/div>/is,
+        /<div[^>]*data-component="ArticleBody"[^>]*>(.*?)<\/div>/is,
+        /<section[^>]*data-module="ArticleBody"[^>]*>(.*?)<\/section>/is
       ];
       
       for (const selector of articleBodySelectors) {
@@ -102,7 +104,8 @@ export async function onRequestGet(context: any): Promise<Response> {
         const mainSelectors = [
           /<main[^>]*>(.*?)<\/main>/is,
           /<article[^>]*>(.*?)<\/article>/is,
-          /<section[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/section>/is
+          /<section[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/section>/is,
+          /<div[^>]*class="[^"]*main[^"]*"[^>]*>(.*?)<\/div>/is
         ];
         
         for (const selector of mainSelectors) {
@@ -114,11 +117,37 @@ export async function onRequestGet(context: any): Promise<Response> {
           }
         }
       }
+      
+      // Strategy 3: CoinDesk often has content in specific div structures - try broader patterns
+      if (!content || content.length < 200) {
+        // Look for divs that contain multiple paragraphs (likely article content)
+        const contentDivs = html.match(/<div[^>]*>[\s\S]*?<p[^>]*>[\s\S]*?<\/p>[\s\S]*?<p[^>]*>[\s\S]*?<\/p>[\s\S]*?<\/div>/gi);
+        if (contentDivs) {
+          // Find the div with the most paragraph content
+          let bestDiv = '';
+          let maxParagraphs = 0;
+          
+          contentDivs.forEach(div => {
+            const paragraphCount = (div.match(/<p[^>]*>/g) || []).length;
+            if (paragraphCount > maxParagraphs) {
+              maxParagraphs = paragraphCount;
+              bestDiv = div;
+            }
+          });
+          
+          if (bestDiv && maxParagraphs >= 3) {
+            content = bestDiv;
+            console.log(`[SCRAPE API] Found content div with ${maxParagraphs} paragraphs`);
+          }
+        }
+      }
     }
     
     // Generic content extraction if CoinDesk-specific didn't work
     if (!content || content.length < 200) {
       console.log('[SCRAPE API] Using generic extraction');
+      
+      // Strategy 1: Look for common article containers
       const selectors = [
         /<article[^>]*>(.*?)<\/article>/is,
         /<div[^>]*class="[^"]*article[^"]*"[^>]*>(.*?)<\/div>/is,
@@ -137,6 +166,32 @@ export async function onRequestGet(context: any): Promise<Response> {
         if (match && match[1].length > content.length) {
           content = match[1];
           console.log(`[SCRAPE API] Found content with selector: ${selector.toString().substring(0, 50)}...`);
+        }
+      }
+      
+      // Strategy 2: If still no content, look for divs with multiple paragraphs
+      if (!content || content.length < 200) {
+        console.log('[SCRAPE API] Trying paragraph-based extraction');
+        const contentDivs = html.match(/<div[^>]*>[\s\S]*?<p[^>]*>[\s\S]*?<\/p>[\s\S]*?<p[^>]*>[\s\S]*?<\/p>[\s\S]*?<\/div>/gi);
+        if (contentDivs) {
+          let bestDiv = '';
+          let maxParagraphs = 0;
+          
+          contentDivs.forEach(div => {
+            const paragraphCount = (div.match(/<p[^>]*>/g) || []).length;
+            const textLength = div.replace(/<[^>]*>/g, '').trim().length;
+            
+            // Prefer divs with more paragraphs and substantial text
+            if (paragraphCount >= 3 && textLength > 500 && paragraphCount > maxParagraphs) {
+              maxParagraphs = paragraphCount;
+              bestDiv = div;
+            }
+          });
+          
+          if (bestDiv) {
+            content = bestDiv;
+            console.log(`[SCRAPE API] Found content div with ${maxParagraphs} paragraphs via generic extraction`);
+          }
         }
       }
     }
