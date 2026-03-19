@@ -622,14 +622,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const posts = await storage.getTelegramPosts('trading', 100);
       
-      // Convert imageData to data URLs for frontend
+      // Use R2 URLs if available, otherwise fall back to base64 data URLs
       const postsWithImages = posts.map(post => ({
-        ...post,
-        image: post.imageData ? `data:image/jpeg;base64,${post.imageData}` : post.image,
-        imageData: undefined // Don't send raw base64 twice
+        messageId: post.messageId,
+        channel: post.channel,
+        text: post.text,
+        date: post.date,
+        views: 0, // Add views if you track them
+        // Prefer R2 URL over base64 for performance
+        image: post.image || (post.imageData ? `data:image/jpeg;base64,${post.imageData}` : null)
       }));
       
-      res.set('Cache-Control', 'public, max-age=900, s-maxage=900'); // Cache 15 min
+      res.set('Cache-Control', 'public, max-age=900, s-maxage=900, stale-while-revalidate=1800'); // Cache 15 min, serve stale for 30 min
       res.json({
         posts: postsWithImages,
         fetchedAt: new Date().toISOString(),
@@ -645,14 +649,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const posts = await storage.getTelegramPosts('airdrop', 100);
       
-      // Convert imageData to data URLs for frontend
+      // Use R2 URLs if available, otherwise fall back to base64 data URLs
       const postsWithImages = posts.map(post => ({
-        ...post,
-        image: post.imageData ? `data:image/jpeg;base64,${post.imageData}` : post.image,
-        imageData: undefined // Don't send raw base64 twice
+        messageId: post.messageId,
+        channel: post.channel,
+        text: post.text,
+        date: post.date,
+        views: 0, // Add views if you track them
+        // Prefer R2 URL over base64 for performance
+        image: post.image || (post.imageData ? `data:image/jpeg;base64,${post.imageData}` : null)
       }));
       
-      res.set('Cache-Control', 'public, max-age=900, s-maxage=900'); // Cache 15 min
+      res.set('Cache-Control', 'public, max-age=900, s-maxage=900, stale-while-revalidate=1800'); // Cache 15 min, serve stale for 30 min
       res.json({
         posts: postsWithImages,
         fetchedAt: new Date().toISOString(),

@@ -627,33 +627,11 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
             <div className="w-full flex justify-center px-8 md:px-16 lg:px-32 xl:px-48">
               <div className="w-full max-w-[650px]">
               <div className="space-y-6">
-                <div className="text-lg leading-relaxed text-gray-300 bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
-                  <p className="mb-4 text-base leading-relaxed">{article.description}</p>
-                  
-                  <div className="border-t border-blue-500/20 pt-4 mt-4">
-                    <p className="text-sm text-blue-200 mb-3">
-                      📰 This is a summary from the RSS feed. For the full article content:
-                    </p>
-                    <a
-                      href={article.original_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-5 rounded-lg transition-colors text-sm"
-                    >
-                      Read Full Article on CoinDesk
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  </div>
+                {/* Just show loading spinner while scraping - don't show the RSS fallback */}
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-400 mb-4" />
+                  <span className="text-base text-blue-300">Loading full article content...</span>
                 </div>
-                
-                {!isPaywalled && !fullContent && (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-                    <span className="ml-2 text-sm text-blue-300">Attempting to load full content...</span>
-                  </div>
-                )}
                 
                 {isPaywalled && (
                   <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
