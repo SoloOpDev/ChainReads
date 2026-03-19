@@ -292,6 +292,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       // Clear backend session
       await fetch('/api/wallet/disconnect', { method: 'POST' });
       
+      // Clear all React Query cache
+      queryClient.clear();
+      
       toast({
         title: "Wallet Disconnected",
         description: "Your wallet has been disconnected. Please disconnect from MetaMask too.",
