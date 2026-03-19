@@ -1,5 +1,5 @@
-import { createDb } from '../server/db-d1';
-import { D1Storage } from '../server/storage-d1';
+// Import types only - we'll create minimal implementations inline
+// to avoid bundling issues with Cloudflare Pages Functions
 
 export interface Env {
   DB: D1Database;
@@ -20,15 +20,11 @@ export interface Env {
 
 export async function onRequest(context: EventContext<Env, any, any>) {
   try {
-    // Initialize database and storage
-    const db = createDb(context.env.DB);
-    const storage = new D1Storage(db);
-    
-    // Add to request context
+    // Add environment bindings to request context
+    // Each Function will handle its own DB queries directly
     context.data = {
       ...context.data,
-      db,
-      storage,
+      db: context.env.DB,
       kv: context.env.KV,
       r2: context.env.R2,
       env: context.env

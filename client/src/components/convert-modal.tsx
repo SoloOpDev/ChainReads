@@ -557,7 +557,7 @@ export function ConvertModal({ isOpen, onClose }: ConvertModalProps) {
             </div>
 
             {/* Exchange Info */}
-            <div className="bg-white/5 rounded-lg p-4 border border-white/10 space-y-3">
+            <div className="bg-white/15 rounded-lg p-4 border border-white/20 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/70">Exchange Rate:</span>
                 <span className="text-white font-medium text-xs">
