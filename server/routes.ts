@@ -318,17 +318,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Try RSS feed first
-      const feed = await getCachedRSSFeed();
+      const rssData = await getCachedRSS();
       const normalizedTargetUrl = normalizeUrl(targetUrl);
       
-      const rssItem = feed.items.find((item: RSSItem) => {
-        const normalizedItemUrl = normalizeUrl(item.link || '');
+      const rssItem = rssData.results.find((article: any) => {
+        const normalizedItemUrl = normalizeUrl(article.original_url || '');
         return normalizedItemUrl === normalizedTargetUrl || normalizedTargetUrl.startsWith(normalizedItemUrl);
       });
 
-      if (rssItem && rssItem['content:encoded'] && rssItem['content:encoded'].length > 200) {
+      if (rssItem && rssItem.content && rssItem.content.length > 200) {
         res.set('Cache-Control', 'public, max-age=3600, s-maxage=7200');
-        return res.json({ content: rssItem['content:encoded'], contentLength: rssItem['content:encoded'].length, strategy: 'rss' });
+        return res.json({ content: rssItem.content, contentLength: rssItem.content.length, strategy: 'rss' });
       }
 
       // Fallback to direct scraping
@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
       res.json({
         ...article,
-        content: article.description || '',
+        content: '', // Don't use RSS description as fallback - it contains junk
         contentStrategy: 'rss-fallback'
       });
     } catch (error) {
@@ -834,16 +834,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const walletAddress = req.walletAddress!; // Set by requireWalletAuth middleware
 
-    // Check wallet transaction history (min 5 transactions)
-    const historyCheck = await checkWalletHistory(walletAddress, 5);
-    if (!historyCheck.valid) {
-      return res.status(403).json({ 
-        error: "Wallet requirements not met",
-        details: historyCheck.error,
-        txCount: historyCheck.txCount,
-        required: 5
-      });
-    }
+    // Transaction history check removed - allow new wallets
+    // const historyCheck = await checkWalletHistory(walletAddress, 5);
+    // if (!historyCheck.valid) {
+    //   return res.status(403).json({ 
+    //     error: "Wallet requirements not met",
+    //     details: historyCheck.error,
+    //     txCount: historyCheck.txCount,
+    //     required: 5
+    //   });
+    // }
 
     let user = await storage.getUserByUsername(walletAddress);
     if (!user) {
@@ -876,19 +876,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // IP binding removed - allow unlimited wallet connections
-    // const walletBindings = await storage.getWalletBindings(walletAddress, section);
+    // max 5 IPs per wallet
+    const walletBindings = await storage.getWalletBindings(walletAddress, section);
     
-    // if (walletBindings.length >= 5) {
-    //   const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
-    //   
-    //   if (!ipAlreadyBound) {
-    //     safeLog('IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
-    //     return res.status(403).json({ 
-    //       error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
-    //     });
-    //   }
-    // }
+    if (walletBindings.length >= 5) {
+      const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
+      
+      if (!ipAlreadyBound) {
+        safeLog('IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
+        return res.status(403).json({ 
+          error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
+        });
+      }
+    }
 
     const now = new Date();
     const utcDate = new Date(Date.UTC(
@@ -951,16 +951,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Article ID required" });
     }
 
-    // Check wallet transaction history (min 5 transactions)
-    const historyCheck = await checkWalletHistory(walletAddress, 5);
-    if (!historyCheck.valid) {
-      return res.status(403).json({ 
-        error: "Wallet requirements not met",
-        details: historyCheck.error,
-        txCount: historyCheck.txCount,
-        required: 5
-      });
-    }
+    // Transaction history check removed - allow new wallets
+    // const historyCheck = await checkWalletHistory(walletAddress, 5);
+    // if (!historyCheck.valid) {
+    //   return res.status(403).json({ 
+    //     error: "Wallet requirements not met",
+    //     details: historyCheck.error,
+    //     txCount: historyCheck.txCount,
+    //     required: 5
+    //   });
+    // }
 
     let user = await storage.getUserByUsername(walletAddress);
     if (!user) {
@@ -994,19 +994,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // IP binding removed - allow unlimited wallet connections
-    // const walletBindings = await storage.getWalletBindings(walletAddress, 'news');
+    // max 5 IPs per wallet
+    const walletBindings = await storage.getWalletBindings(walletAddress, 'news');
     
-    // if (walletBindings.length >= 5) {
-    //   const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
-    //   
-    //   if (!ipAlreadyBound) {
-    //     safeLog('NEWS-IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
-    //     return res.status(403).json({ 
-    //       error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
-    //     });
-    //   }
-    // }
+    if (walletBindings.length >= 5) {
+      const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
+      
+      if (!ipAlreadyBound) {
+        safeLog('NEWS-IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
+        return res.status(403).json({ 
+          error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
+        });
+      }
+    }
 
     // Check if already claimed this specific article
     const existingClaim = await storage.getUserClaimForArticle(user.id, `news-${articleId}`);
@@ -1249,15 +1249,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Direction must be 'up' or 'down'" });
     }
 
-    const historyCheck = await checkWalletHistory(walletAddress, 5);
-    if (!historyCheck.valid) {
-      return res.status(403).json({ 
-        error: "Wallet requirements not met",
-        details: historyCheck.error,
-        txCount: historyCheck.txCount,
-        required: 5
-      });
-    }
+    // Transaction history check removed - allow new wallets
+    // const historyCheck = await checkWalletHistory(walletAddress, 5);
+    // if (!historyCheck.valid) {
+    //   return res.status(403).json({ 
+    //     error: "Wallet requirements not met",
+    //     details: historyCheck.error,
+    //     txCount: historyCheck.txCount,
+    //     required: 5
+    //   });
+    // }
 
     const user = await storage.getUserByUsername(walletAddress);
     if (!user) {
