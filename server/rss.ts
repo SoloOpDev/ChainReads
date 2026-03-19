@@ -35,16 +35,32 @@ export async function fetchCoinDeskRSS(): Promise<CachedNews> {
       const fullContent = itemAny['content:encoded'] || '';
       const description = item.contentSnippet || item.summary || '';
       
+      // Use full content if available and substantial, otherwise use description
+      let content = '';
+      if (fullContent && fullContent.length > 500) {
+        // Clean up the RSS content - remove HTML tags but keep structure
+        content = fullContent
+          .replace(/<script[^>]*>.*?<\/script>/gi, '')
+          .replace(/<style[^>]*>.*?<\/style>/gi, '')
+          .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+          .replace(/<div[^>]*class="[^"]*ad[^"]*"[^>]*>.*?<\/div>/gi, '')
+          .replace(/<div[^>]*class="[^"]*promo[^"]*"[^>]*>.*?<\/div>/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      } else {
+        content = description;
+      }
+      
       // Only log if content is missing (to reduce noise)
-      if (!fullContent || fullContent.length < 500) {
-        console.log(`⚠️ Article ${id}: ${item.title?.substring(0, 50)}... - Content: ${fullContent ? fullContent.length : 0} chars (SHORT), Description: ${description.length} chars`);
+      if (!content || content.length < 200) {
+        console.log(`⚠️ Article ${id}: ${item.title?.substring(0, 50)}... - Content: ${content ? content.length : 0} chars (SHORT)`);
       }
       
       return {
         id,
         title: item.title || '',
         description,
-        content: fullContent, // Include full content from RSS
+        content, // Use the cleaned RSS content instead of empty string
         source: {
           title: 'CoinDesk',
           domain: 'coindesk.com',

@@ -876,19 +876,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // max 5 IPs per wallet
-    const walletBindings = await storage.getWalletBindings(walletAddress, section);
+    // IP binding removed - allow unlimited wallet connections
+    // const walletBindings = await storage.getWalletBindings(walletAddress, section);
     
-    if (walletBindings.length >= 5) {
-      const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
-      
-      if (!ipAlreadyBound) {
-        safeLog('IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
-        return res.status(403).json({ 
-          error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
-        });
-      }
-    }
+    // if (walletBindings.length >= 5) {
+    //   const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
+    //   
+    //   if (!ipAlreadyBound) {
+    //     safeLog('IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
+    //     return res.status(403).json({ 
+    //       error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
+    //     });
+    //   }
+    // }
 
     const now = new Date();
     const utcDate = new Date(Date.UTC(
@@ -994,19 +994,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
     
-    // max 5 IPs per wallet
-    const walletBindings = await storage.getWalletBindings(walletAddress, 'news');
+    // IP binding removed - allow unlimited wallet connections
+    // const walletBindings = await storage.getWalletBindings(walletAddress, 'news');
     
-    if (walletBindings.length >= 5) {
-      const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
-      
-      if (!ipAlreadyBound) {
-        safeLog('NEWS-IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
-        return res.status(403).json({ 
-          error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
-        });
-      }
-    }
+    // if (walletBindings.length >= 5) {
+    //   const ipAlreadyBound = walletBindings.some(b => b.ipAddress === clientIp);
+    //   
+    //   if (!ipAlreadyBound) {
+    //     safeLog('NEWS-IP-BINDING', 'Wallet already has 5 IPs - BLOCKED');
+    //     return res.status(403).json({ 
+    //       error: "Your wallet is already registered with 5 different IPs (max limit). Please use one of your existing devices."
+    //     });
+    //   }
+    // }
 
     // Check if already claimed this specific article
     const existingClaim = await storage.getUserClaimForArticle(user.id, `news-${articleId}`);
