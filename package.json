@@ -5,8 +5,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "wrangler pages dev dist/public --compatibility-date=2024-01-01 --d1=DB --kv=KV --r2=R2",
-    "build": "npx update-browserslist-db@latest && npx vite build",
-    "start": "tsx server/index.ts",
+    "build": "npx update-browserslist-db@latest && npx vite build && npm run build:server",
+    "build:server": "tsc --project tsconfig.server.json",
+    "start": "node dist/server/index.js",
     "deploy": "wrangler pages deploy dist/public",
     "d1:create": "wrangler d1 create chainreads-db",
     "d1:migrate": "wrangler d1 migrations apply chainreads-db --local",
