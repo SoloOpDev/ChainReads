@@ -403,8 +403,8 @@ export async function onRequestGet(context: any): Promise<Response> {
         .replace(/<h[1-6][^>]*>.*?(More For You|Related|Latest|Top Stories).*?<\/h[1-6]>/gis, '')
         .trim();
       
-      // Remove trailing paragraphs that look like related article titles
-      // These are usually short (<100 chars) and mention price movements
+      // Remove trailing paragraphs that look like related article titles or summaries
+      // These are usually short (<150 chars) and mention price movements or are very generic
       const paragraphs = content.split(/<\/p>/gi);
       const cleanedParagraphs = [];
       
@@ -414,18 +414,23 @@ export async function onRequestGet(context: any): Promise<Response> {
         
         const text = p.replace(/<[^>]*>/g, '').trim();
         
-        // If this is one of the last 3 paragraphs and looks like a related article title, skip it
+        // If this is one of the last 3 paragraphs and looks like a related article title/summary, skip it
         const isNearEnd = i >= paragraphs.length - 3;
-        const looksLikeRelatedTitle = text.length < 100 && (
-          (text.toLowerCase().includes('bitcoin') || text.toLowerCase().includes('crypto') || text.toLowerCase().includes('btc')) &&
-          (text.toLowerCase().includes('slips') || text.toLowerCase().includes('surge') || 
-           text.toLowerCase().includes('weigh') || text.toLowerCase().includes('dips') ||
-           text.toLowerCase().includes('rises') || text.toLowerCase().includes('falls') ||
-           text.toLowerCase().includes('jumps') || text.toLowerCase().includes('drops'))
+        const looksLikeRelatedContent = text.length < 150 && (
+          // Price movement patterns
+          ((text.toLowerCase().includes('bitcoin') || text.toLowerCase().includes('crypto') || text.toLowerCase().includes('btc')) &&
+           (text.toLowerCase().includes('slips') || text.toLowerCase().includes('surge') || 
+            text.toLowerCase().includes('weigh') || text.toLowerCase().includes('dips') ||
+            text.toLowerCase().includes('dipped') || text.toLowerCase().includes('rises') || 
+            text.toLowerCase().includes('falls') || text.toLowerCase().includes('jumps') || 
+            text.toLowerCase().includes('drops') || text.toLowerCase().includes('spiked') ||
+            text.toLowerCase().includes('pressuring'))) ||
+          // Very short summaries that don't add value
+          (text.length < 80 && text.split(' ').length < 15)
         );
         
-        if (isNearEnd && looksLikeRelatedTitle) {
-          console.log('[SCRAPE API] Removing related article title:', text.substring(0, 80));
+        if (isNearEnd && looksLikeRelatedContent) {
+          console.log('[SCRAPE API] Removing trailing related content:', text.substring(0, 80));
           continue;
         }
         
