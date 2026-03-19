@@ -38,7 +38,9 @@ client/public/telegram/
 test-*.sh
 test-*.py
 test-*.js
+test_*.py
 fix-*.sh
+*fix*.sh
 send_to_api.py
 generate_session.py
 get-backend-address.js
@@ -48,6 +50,27 @@ package-cloudflare.json
 tsconfig.server.json
 postcss.config.js
 wrangler.toml
+drizzle.config.d1.ts
+components.json
+coingecko-guides.json
+
+# Internal scripts
+scripts/check-cloudflare-setup.*
+scripts/verify-github-secrets.sh
+check-dns.sh
+hotfix_*.sh
+manual_*.py
+fetch_telegram_enhanced.py
+
+# Deployment/setup docs
+*_SETUP*.md
+*_FIX*.md
+*_DEPLOYMENT*.md
+CLOUDFLARE_*.md
+RAILWAY_*.md
 
 # Wrangler local state
 .wrangler/
+
+# Migration folders (keep migrations/ but hide migrations-d1/)
+migrations-d1/
