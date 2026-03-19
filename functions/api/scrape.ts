@@ -304,7 +304,6 @@ export async function onRequestGet(context: any): Promise<Response> {
         .replace(/\s+data-[^=]*="[^"]*"/gis, '');
 
       // Sixth pass - extract paragraphs and headings with moderate filtering
-      const cleanParagraphs = [];
       const pMatches = content.match(/<p[^>]*>(.*?)<\/p>/gis);
       const h1Matches = content.match(/<h1[^>]*>(.*?)<\/h1>/gis);
       const h2Matches = content.match(/<h2[^>]*>(.*?)<\/h2>/gis);
