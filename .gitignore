@@ -33,3 +33,21 @@ client/public/telegram/
 .idea/
 *.swp
 *.swo
+
+# Test/debug scripts and configs
+test-*.sh
+test-*.py
+test-*.js
+fix-*.sh
+send_to_api.py
+generate_session.py
+get-backend-address.js
+hardhat.config.js
+package-lock.json
+package-cloudflare.json
+tsconfig.server.json
+postcss.config.js
+wrangler.toml
+
+# Wrangler local state
+.wrangler/
