@@ -354,7 +354,7 @@ export async function onRequestGet(context: any): Promise<Response> {
       if (pMatches) {
         pMatches.forEach(p => {
           const text = p.replace(/<[^>]*>/g, '').trim();
-          // Keep most paragraphs, only filter out obvious junk
+          // Keep most paragraphs, only filter out obvious junk and navigation
           if (text.length > 15 && 
               !text.toLowerCase().includes('subscribe') &&
               !text.toLowerCase().includes('newsletter') &&
@@ -362,7 +362,22 @@ export async function onRequestGet(context: any): Promise<Response> {
               !text.toLowerCase().includes('more for you') &&
               !text.toLowerCase().includes('related articles') &&
               !text.toLowerCase().includes('advertisement') &&
-              !text.toLowerCase().includes('sponsored')) {
+              !text.toLowerCase().includes('sponsored') &&
+              !text.toLowerCase().includes('read more') &&
+              !text.toLowerCase().includes('continue reading') &&
+              // Filter out related article titles (usually short and mention Bitcoin/crypto)
+              !(text.length < 100 && (
+                text.toLowerCase().includes('bitcoin') || 
+                text.toLowerCase().includes('crypto') ||
+                text.toLowerCase().includes('btc')
+              ) && (
+                text.toLowerCase().includes('slips') ||
+                text.toLowerCase().includes('surge') ||
+                text.toLowerCase().includes('weigh') ||
+                text.toLowerCase().includes('dips') ||
+                text.toLowerCase().includes('rises') ||
+                text.toLowerCase().includes('falls')
+              ))) {
             cleanContent += `<p>${text}</p>\n`;
           }
         });
@@ -387,6 +402,37 @@ export async function onRequestGet(context: any): Promise<Response> {
         .replace(/<p[^>]*>.*?(More For You|Related|Latest|Top Stories|CoinDesk|minutes ago|hours ago|Edited by).*?<\/p>/gis, '')
         .replace(/<h[1-6][^>]*>.*?(More For You|Related|Latest|Top Stories).*?<\/h[1-6]>/gis, '')
         .trim();
+      
+      // Remove trailing paragraphs that look like related article titles
+      // These are usually short (<100 chars) and mention price movements
+      const paragraphs = content.split(/<\/p>/gi);
+      const cleanedParagraphs = [];
+      
+      for (let i = 0; i < paragraphs.length; i++) {
+        const p = paragraphs[i].trim();
+        if (!p) continue;
+        
+        const text = p.replace(/<[^>]*>/g, '').trim();
+        
+        // If this is one of the last 3 paragraphs and looks like a related article title, skip it
+        const isNearEnd = i >= paragraphs.length - 3;
+        const looksLikeRelatedTitle = text.length < 100 && (
+          (text.toLowerCase().includes('bitcoin') || text.toLowerCase().includes('crypto') || text.toLowerCase().includes('btc')) &&
+          (text.toLowerCase().includes('slips') || text.toLowerCase().includes('surge') || 
+           text.toLowerCase().includes('weigh') || text.toLowerCase().includes('dips') ||
+           text.toLowerCase().includes('rises') || text.toLowerCase().includes('falls') ||
+           text.toLowerCase().includes('jumps') || text.toLowerCase().includes('drops'))
+        );
+        
+        if (isNearEnd && looksLikeRelatedTitle) {
+          console.log('[SCRAPE API] Removing related article title:', text.substring(0, 80));
+          continue;
+        }
+        
+        cleanedParagraphs.push(p);
+      }
+      
+      content = cleanedParagraphs.join('</p>') + (cleanedParagraphs.length > 0 ? '</p>' : '');
     }
     
     const result = {
