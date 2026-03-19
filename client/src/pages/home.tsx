@@ -214,7 +214,7 @@ export default function Home() {
               News
             </h2>
           </div>
-          <div className="grid grid-cols-5 gap-6 px-2 md:px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 px-2 md:px-4">
             {[...Array(10)].map((_, i) => (
               <Card key={i} className="backdrop-blur-md bg-blue-900/10 border-2 border-blue-500/40 rounded-xl p-4">
                 <div className="h-48 bg-blue-800/20 animate-pulse rounded mb-4" />
@@ -250,7 +250,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-6 pb-6 px-2 md:px-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-6 px-2 md:px-4">
         {newsData.results.map((article, index) => {
           const prefetchArticle = () => {
             globalQueryClient

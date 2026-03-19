@@ -15,7 +15,7 @@ export async function fetchCoinDeskRSS() {
       id: (index + 1).toString(),
       title: item.title || '',
       description: item.description || '',
-      content: item.content || item.description || '',
+      content: '', // Don't use RSS content as it contains junk - let scraper handle it
       source: {
         title: 'CoinDesk',
         domain: 'coindesk.com',
@@ -52,7 +52,7 @@ function parseRSSItems(rssText: string) {
     const item = {
       title: extractTag(itemXml, 'title'),
       description: extractTag(itemXml, 'description'),
-      content: extractTag(itemXml, 'content:encoded') || extractTag(itemXml, 'description'),
+      content: '', // Don't use RSS content as it contains junk - let scraper handle it
       link: extractTag(itemXml, 'link'),
       pubDate: extractTag(itemXml, 'pubDate'),
       author: extractTag(itemXml, 'dc:creator') || extractTag(itemXml, 'author'),

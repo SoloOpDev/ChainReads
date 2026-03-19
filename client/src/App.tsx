@@ -31,20 +31,33 @@ class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, errorInfo: any) {
     console.error('Error caught by boundary:', error, errorInfo);
-    // Redirect to homepage after 2 seconds
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 2000);
+    console.error('Error stack:', error.stack);
+    console.error('Component stack:', errorInfo.componentStack);
+    // Don't redirect automatically - let user see the error
+    // setTimeout(() => {
+    //   window.location.href = '/';
+    // }, 2000);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-950">
-          <div className="text-center">
+        <div className="min-h-screen flex items-center justify-center bg-gray-950 p-8">
+          <div className="text-center max-w-2xl">
             <h1 className="text-2xl font-bold text-white mb-4">Something went wrong</h1>
-            <p className="text-gray-400 mb-4">Redirecting to homepage...</p>
-            <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="text-gray-400 mb-4">Check the browser console for more details.</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg mr-4"
+            >
+              Reload Page
+            </button>
+            <button 
+              onClick={() => window.location.href = '/'} 
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg"
+            >
+              Go Home
+            </button>
           </div>
         </div>
       );

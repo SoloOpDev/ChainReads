@@ -317,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Only CoinDesk articles are supported' });
       }
 
-      // Try RSS feed first
+      // Try RSS feed first (but CoinDesk RSS has empty content, so this will likely fail)
       const rssData = await getCachedRSS();
       const normalizedTargetUrl = normalizeUrl(targetUrl);
       
@@ -326,15 +326,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return normalizedItemUrl === normalizedTargetUrl || normalizedTargetUrl.startsWith(normalizedItemUrl);
       });
 
-      if (rssItem && rssItem.content && rssItem.content.length > 200) {
+      // Only use RSS content if it's substantial (CoinDesk RSS is usually empty)
+      if (rssItem && rssItem.content && rssItem.content.length > 500) {
+        console.log(`[SCRAPE] ✅ Using RSS content for ${targetUrl} (${rssItem.content.length} chars)`);
         res.set('Cache-Control', 'public, max-age=3600, s-maxage=7200');
         return res.json({ content: rssItem.content, contentLength: rssItem.content.length, strategy: 'rss' });
       }
 
-      // Fallback to direct scraping
-      console.log(`RSS content not found for ${targetUrl}. Scraping directly.`);
+      // CoinDesk RSS doesn't provide full content, scrape directly
+      console.log(`[SCRAPE] 🔄 RSS content not available for ${targetUrl}, scraping directly...`);
       const page = await extractHtmlFromArticlePageCached(targetUrl);
-      console.log(`Scrape success: ${page.meta.textLen} chars`);
+      console.log(`[SCRAPE] ✅ Scrape success: ${page.meta.textLen} chars`);
       res.set('Cache-Control', 'public, max-age=3600, s-maxage=7200');
       return res.json({ content: page.html, contentLength: page.meta.textLen, strategy: page.meta.strategy });
 
@@ -412,12 +414,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // CoinDesk RSS doesn't provide full content, so we ALWAYS need to scrape
       if (article.source?.domain === 'coindesk.com' && article.original_url) {
         try {
-          console.log(`[API /article/:id] Scraping full content from: ${article.original_url}`);
+          console.log(`[API /article/:id] 🔄 RSS content insufficient (${article.content?.length || 0} chars), scraping from: ${article.original_url}`);
           
           const page = await extractHtmlFromArticlePageCached(article.original_url);
-          console.log(`[API /article/:id] Successfully scraped content (${page.meta.textLen} chars)`);
+          console.log(`[API /article/:id] ✅ Successfully scraped content (${page.meta.textLen} chars)`);
           res.set('Cache-Control', 'public, max-age=3600, s-maxage=7200');
           
           // don't spread article first, it overwrites content
@@ -428,7 +431,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contentStrategy: page.meta.strategy
           });
         } catch (scrapeError) {
-          console.error("Error fetching full content:", scrapeError);
+          console.error(`[API /article/:id] ❌ Scraping failed for ${article.original_url}:`, scrapeError);
+          // Fall through to show description with external link
         }
       }
 

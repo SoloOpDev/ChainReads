@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Coins, TrendingUp, Newspaper, Gift, X } from "lucide-react";
 
 export function WelcomeModal() {
   const [open, setOpen] = useState(false);
+  const [location] = useLocation();
 
+  // Don't render the modal at all on article pages
+  const isArticlePage = location.startsWith('/article/');
+  
   useEffect(() => {
+    // Skip entirely on article pages
+    if (isArticlePage) {
+      console.log('Article page detected - welcome modal disabled for:', location);
+      return;
+    }
+
+    console.log('WelcomeModal useEffect - location:', location);
     // Only show once per browser - check localStorage
     const hasSeenWelcome = localStorage.getItem('chainreads-welcome-seen');
     console.log('Welcome modal check:', hasSeenWelcome ? 'Already seen' : 'First visit - showing modal');
@@ -15,7 +27,12 @@ export function WelcomeModal() {
       // Small delay for better UX
       setTimeout(() => setOpen(true), 500);
     }
-  }, []);
+  }, [location, isArticlePage]);
+
+  // Don't render anything on article pages
+  if (isArticlePage) {
+    return null;
+  }
 
   const handleClose = () => {
     // Mark as seen in localStorage

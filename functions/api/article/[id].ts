@@ -1,89 +1,112 @@
-import type { Env } from '../../_middleware';
-
-export async function onRequestGet(context: EventContext<Env, any, any>) {
-  const { storage, kv } = context.data;
-  const { id } = context.params;
-  
-  if (!id) {
-    return new Response(JSON.stringify({ error: 'Article ID required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
+export async function onRequest(context: any): Promise<Response> {
   try {
-    // Try cache first
-    const cacheKey = `article:${id}`;
-    const cached = await kv.get(cacheKey);
+    const { id } = context.params;
+    console.log(`[ARTICLE API] Looking for article with ID: ${id}`);
     
-    if (cached) {
-      return new Response(cached, {
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'public, max-age=3600' // 1 hour
+    // Handle academic articles
+    if (id.startsWith('academic-')) {
+      try {
+        // Try to fetch the guides file from the public directory
+        const baseUrl = new URL(context.request.url).origin;
+        const guidesUrl = `${baseUrl}/coingecko-guides.json`;
+        console.log('[ARTICLE API] Fetching academic guides from:', guidesUrl);
+        
+        const guidesResponse = await fetch(guidesUrl);
+        
+        if (guidesResponse.ok) {
+          const guidesData = await guidesResponse.json();
+          const guides = Array.isArray(guidesData) ? guidesData : (guidesData.guides || []);
+          const article = guides.find((g: any) => g.id === id);
+          
+          if (!article) {
+            console.log(`[ARTICLE API] Academic article not found: ${id}`);
+            return new Response(JSON.stringify({ message: "Academic article not found" }), {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          
+          console.log(`[ARTICLE API] Found academic article: ${article.title}`);
+          return new Response(JSON.stringify({
+            ...article,
+            content: article.fullContent || article.description || '',
+            contentStrategy: 'academic'
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=3600',
+            },
+          });
+        } else {
+          console.log('[ARTICLE API] Could not fetch coingecko-guides.json, status:', guidesResponse.status);
         }
+      } catch (err) {
+        console.error('[ARTICLE API] Error reading academic articles:', err);
+      }
+      
+      // Fallback for academic articles
+      return new Response(JSON.stringify({
+        id: id,
+        title: "Academic Article",
+        description: "This academic article is currently unavailable.",
+        content: "<p>This academic article content is currently being processed. Please try again later.</p>",
+        contentStrategy: 'academic-fallback'
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'public, max-age=300',
+        },
       });
     }
     
-    // Try to get from database
-    let article = null;
+    // Handle regular news articles - fetch from news API and find by ID
     try {
-      article = await storage.getNewsArticle(id);
-    } catch (dbError) {
-      console.error('Database query failed:', dbError);
-    }
-    
-    // If not in database, create a placeholder
-    if (!article) {
-      article = {
-        id,
-        title: "Article Content Loading...",
-        description: "This article is being processed. Please check back in a moment.",
-        content: "The full article content is being loaded from our news sources. Please refresh the page or try again in a few moments.",
-        published_at: new Date().toISOString(),
-        source: { title: "CoinDesk", domain: "coindesk.com" },
-        image: null,
-        url: "#",
-        original_url: "#",
-        kind: "article",
-        author: null,
-        created_at: new Date().toISOString(),
-        instruments: null,
-        votes: null
-      };
-    }
-    
-    const response = JSON.stringify(article);
-    
-    // Cache for 1 hour
-    await kv.put(cacheKey, response, { expirationTtl: 3600 });
-    
-    return new Response(response, {
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600'
+      console.log(`[ARTICLE API] Fetching news articles to find ID: ${id}`);
+      const baseUrl = new URL(context.request.url).origin;
+      const newsUrl = `${baseUrl}/api/news?limit=100`;
+      
+      const newsResponse = await fetch(newsUrl);
+      if (newsResponse.ok) {
+        const newsData = await newsResponse.json();
+        const articles = newsData.results || [];
+        const article = articles.find((a: any) => String(a.id) === String(id));
+        
+        if (article) {
+          console.log(`[ARTICLE API] Found news article: ${article.title}`);
+          return new Response(JSON.stringify({
+            ...article,
+            content: '', // Don't use RSS content as fallback - let scraper handle it
+            contentStrategy: 'news'
+          }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=600',
+            },
+          });
+        }
       }
+    } catch (err) {
+      console.error('[ARTICLE API] Error fetching news articles:', err);
+    }
+    
+    // Article not found
+    return new Response(JSON.stringify({
+      message: "Article not found",
+      id: id
+    }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
     });
+    
   } catch (error) {
-    console.error(`Failed to fetch article ${id}:`, error);
-    
-    // Return a fallback article
-    const fallbackArticle = {
-      id,
-      title: "Article Unavailable",
-      description: "This article is temporarily unavailable.",
-      content: "We're sorry, but this article content is currently unavailable. Please try again later or browse other articles.",
-      published_at: new Date().toISOString(),
-      source: { title: "ChainReads" },
-      image: null,
-      url: "#"
-    };
-    
-    return new Response(JSON.stringify(fallbackArticle), {
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300'
-      }
+    console.error("[ARTICLE API] Error fetching article:", error);
+    return new Response(JSON.stringify({ 
+      message: "Failed to fetch article",
+      error: error instanceof Error ? error.message : "Unknown error"
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 }

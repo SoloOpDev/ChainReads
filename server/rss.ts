@@ -35,10 +35,13 @@ export async function fetchCoinDeskRSS(): Promise<CachedNews> {
       const fullContent = itemAny['content:encoded'] || '';
       const description = item.contentSnippet || item.summary || '';
       
-      // Use full content if available and substantial, otherwise use description
+      // CoinDesk RSS feed has empty content:encoded, so we need to scrape
+      // Set content to empty string to force scraping in the article endpoint
       let content = '';
+      
+      // Only use RSS content if it's substantial (>500 chars)
       if (fullContent && fullContent.length > 500) {
-        // Clean up the RSS content - remove HTML tags but keep structure
+        // Clean up the RSS content - remove scripts/styles but keep article content
         content = fullContent
           .replace(/<script[^>]*>.*?<\/script>/gi, '')
           .replace(/<style[^>]*>.*?<\/style>/gi, '')
@@ -47,13 +50,10 @@ export async function fetchCoinDeskRSS(): Promise<CachedNews> {
           .replace(/<div[^>]*class="[^"]*promo[^"]*"[^>]*>.*?<\/div>/gi, '')
           .replace(/\s+/g, ' ')
           .trim();
+        console.log(`✅ Article ${id}: Using RSS content (${content.length} chars)`);
       } else {
-        content = description;
-      }
-      
-      // Only log if content is missing (to reduce noise)
-      if (!content || content.length < 200) {
-        console.log(`⚠️ Article ${id}: ${item.title?.substring(0, 50)}... - Content: ${content ? content.length : 0} chars (SHORT)`);
+        // CoinDesk RSS doesn't provide full content, leave empty to force scraping
+        console.log(`📰 Article ${id}: ${item.title?.substring(0, 50)}... - No RSS content, will scrape`);
       }
       
       return {

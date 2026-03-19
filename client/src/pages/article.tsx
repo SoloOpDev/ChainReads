@@ -103,29 +103,18 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
     staleTime: 30 * 60 * 1000,
   });
   
-  // Clean content - extract from wrapper divs if needed
-  const cleanContent = (html: string): string => {
+  // Format content - clean up HTML and ensure proper structure
+  const formatContent = (html: string): string => {
     if (!html) return '';
     
-    console.log('🧹 RAW HTML:', { length: html.length, preview: html.substring(0, 500) });
+    // If it's already proper HTML with multiple paragraphs, return as-is
+    if (html.includes('<p>') || html.includes('<div>') || html.includes('<article>')) {
+      return html;
+    }
     
-    // Check if content is wrapped in a div with class that might be hidden
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    // Log what we're actually getting
-    console.log('🧹 PARSED:', {
-      bodyChildren: doc.body.children.length,
-      firstChild: doc.body.firstElementChild?.tagName,
-      firstChildClass: doc.body.firstElementChild?.className,
-      textContent: doc.body.textContent?.substring(0, 200)
-    });
-    
-    // If there's a wrapper div, extract its innerHTML
-    if (doc.body.children.length === 1 && doc.body.firstElementChild?.tagName === 'DIV') {
-      const wrapper = doc.body.firstElementChild as HTMLElement;
-      console.log('🧹 UNWRAPPING DIV');
-      return wrapper.innerHTML;
+    // If it's just plain text (RSS description), wrap in paragraph
+    if (!html.includes('<')) {
+      return `<p>${html}</p>`;
     }
     
     return html;
@@ -344,34 +333,33 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
     // ALWAYS clear sessionStorage to force fresh scraping
     try {
       sessionStorage.removeItem(`article:${articleId}`);
+      // Also clear any other cached versions
+      sessionStorage.clear();
     } catch {}
   }, [articleId]);
 
   useEffect(() => {
     if (!article) return;
     
-    // Academic articles - wait for API, don't use list content
+    // For academic articles - wait for API, don't use list content
     if (isAcademic) {
       return;
     }
     
-    // Check if article already has content from RSS
-    const articleWithContent = article as any;
-    const hasRSSContent = articleWithContent.content && articleWithContent.content.length > 200;
-    
+    // CoinDesk RSS doesn't provide full content, so we ALWAYS need to scrape
     console.log('🔍 Article data:', { 
       title: article.title, 
       original_url: article.original_url,
       hasDescription: !!article.description,
       descriptionLength: article.description?.length || 0,
-      hasRSSContent,
-      rssContentLength: articleWithContent.content?.length || 0
+      hasContent: !!article.content,
+      contentLength: article.content?.length || 0
     });
     
-    // Got RSS content already? Use it
-    if (hasRSSContent) {
-      console.log('✅ Using RSS content directly, length:', articleWithContent.content.length);
-      setFullContent(articleWithContent.content);
+    // Only use existing content if it's substantial (>500 chars)
+    if (article.content && article.content.length > 500) {
+      console.log('✅ Using existing substantial content, no scraping needed');
+      setFullContent(article.content);
       return;
     }
     
@@ -380,6 +368,7 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
       const scrapeUrl = getApiUrl(`/api/scrape?url=${encodeURIComponent(article.original_url)}`);
       console.log('🌐 Fetching scrape for:', article.original_url);
       console.log('🌐 Scrape URL:', scrapeUrl);
+      console.log('🌐 Article ID:', articleId);
       
       fetch(scrapeUrl, { signal: ctrl.signal })
         .then(async res => {
@@ -399,21 +388,25 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
             hasContent: !!data?.content, 
             contentLength: data?.content?.length || 0,
             strategy: data?.strategy,
+            success: data?.success,
             preview: data?.content?.substring(0, 300)
           });
-          if (data?.content) {
+          if (data?.content && data.content.length > 100) {
             console.log('✅ Setting scraped content, length:', data.content.length);
             setFullContent(data.content);
             try {
               sessionStorage.setItem(`article:${articleId}` , JSON.stringify({ content: data.content, ts: Date.now() }));
             } catch {}
           } else {
-            console.warn('⚠️ Scrape returned no content, data:', data);
+            console.warn('⚠️ Scrape returned insufficient content, will show RSS description with link to full article');
+            // Don't use RSS content as it contains junk - let it fall through to show RSS description with link
           }
         })
         .catch((err) => {
           if (err.name !== 'AbortError') {
             console.error('❌ Scrape failed:', err.message, err);
+            // Don't use RSS content as fallback - it contains junk the user doesn't want
+            console.log('Will show RSS description with link to full article instead');
           }
         });
       return () => ctrl.abort();
@@ -605,10 +598,10 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
             </div>
           )}
 
-          {fullContent ? (
-            <div className="w-full max-w-2xl mx-auto px-6 overflow-x-hidden">
+          {fullContent && fullContent.length > 200 ? (
+            <div className="w-full max-w-4xl mx-auto px-6 overflow-x-hidden">
               <div
-                  className="article-content overflow-x-hidden
+                  className="article-content prose prose-invert prose-lg max-w-none overflow-x-hidden
                   [&_h1]:text-white [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mb-8 [&_h1]:mt-12 [&_h1]:leading-tight
                   [&_h2]:text-white [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mt-12 [&_h2]:mb-6 [&_h2]:leading-tight [&_h2]:border-b [&_h2]:border-white/20 [&_h2]:pb-3
                   [&_h3]:text-white [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mt-10 [&_h3]:mb-4 [&_h3]:leading-snug
@@ -622,23 +615,46 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
                   [&_li]:text-gray-300 [&_li]:text-base [&_li]:leading-[1.8] [&_li]:mb-2
                   [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:pl-6 [&_blockquote]:my-8 [&_blockquote]:italic [&_blockquote]:text-gray-300 [&_blockquote]:bg-blue-900/20 [&_blockquote]:py-5 [&_blockquote]:rounded-r [&_blockquote]:text-base
                   [&_img]:my-8 [&_img]:rounded-lg [&_img]:max-w-full [&_img]:h-auto [&_img]:shadow-lg
-                  [&_pre]:overflow-x-auto [&_code]:break-words"
-                  dangerouslySetInnerHTML={{ __html: cleanContent(fullContent) }}
+                  [&_pre]:overflow-x-auto [&_pre]:bg-gray-800 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:text-gray-300
+                  [&_code]:bg-gray-800 [&_code]:px-2 [&_code]:py-1 [&_code]:rounded [&_code]:text-gray-300 [&_code]:text-sm
+                  [&_table]:w-full [&_table]:border-collapse [&_table]:my-6
+                  [&_th]:border [&_th]:border-gray-600 [&_th]:bg-gray-800 [&_th]:px-4 [&_th]:py-2 [&_th]:text-white [&_th]:font-semibold
+                  [&_td]:border [&_td]:border-gray-600 [&_td]:px-4 [&_td]:py-2 [&_td]:text-gray-300"
+                  dangerouslySetInnerHTML={{ __html: formatContent(fullContent) }}
                 />
             </div>
           ) : (
             <div className="w-full flex justify-center px-8 md:px-16 lg:px-32 xl:px-48">
               <div className="w-full max-w-[650px]">
-              <div className="space-y-4">
-                <p className="text-lg leading-relaxed text-muted-foreground">
-                  {article.description}
-                </p>
-                {!isPaywalled && (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Loading full article...</span>
+              <div className="space-y-6">
+                <div className="text-lg leading-relaxed text-gray-300 bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
+                  <p className="mb-4 text-base leading-relaxed">{article.description}</p>
+                  
+                  <div className="border-t border-blue-500/20 pt-4 mt-4">
+                    <p className="text-sm text-blue-200 mb-3">
+                      📰 This is a summary from the RSS feed. For the full article content:
+                    </p>
+                    <a
+                      href={article.original_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-5 rounded-lg transition-colors text-sm"
+                    >
+                      Read Full Article on CoinDesk
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
+                
+                {!isPaywalled && !fullContent && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                    <span className="ml-2 text-sm text-blue-300">Attempting to load full content...</span>
                   </div>
                 )}
+                
                 {isPaywalled && (
                   <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
                     <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
@@ -647,14 +663,6 @@ export default function ArticlePage({ params }: { params: { id: string } }) {
                     <p className="text-sm text-yellow-700 dark:text-yellow-300">
                       This content is behind a paywall. You can read it on the original site if you have an account.
                     </p>
-                    <a
-                      href={article.original_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 inline-block text-sm font-medium text-yellow-800 dark:text-yellow-200 underline hover:no-underline"
-                    >
-                      Read on CoinDesk →
-                    </a>
                   </div>
                 )}
               </div>

@@ -27,7 +27,11 @@ export async function onRequestPost(context: EventContext<Env, any, any>) {
       });
     }
     
-    const response = await fetch('https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/update-telegram.yml/dispatches', {
+    // Get repo info from environment or use a default
+    const repoOwner = env.GITHUB_REPO_OWNER || 'your-username';
+    const repoName = env.GITHUB_REPO_NAME || 'chainreads';
+    
+    const response = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/actions/workflows/update-telegram.yml/dispatches`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${githubToken}`,
