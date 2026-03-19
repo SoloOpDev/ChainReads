@@ -215,6 +215,58 @@ export async function onRequestGet(context: any): Promise<Response> {
       }
     }
     
+    // AGGRESSIVE FALLBACK: If we still have no content, extract all text and try to find article content
+    if (!content || content.length < 100) {
+      console.log('[SCRAPE API] Using aggressive text extraction fallback');
+      
+      // Remove scripts, styles, and other non-content elements first
+      let cleanHtml = html
+        .replace(/<script[^>]*>.*?<\/script>/gis, '')
+        .replace(/<style[^>]*>.*?<\/style>/gis, '')
+        .replace(/<nav[^>]*>.*?<\/nav>/gis, '')
+        .replace(/<header[^>]*>.*?<\/header>/gis, '')
+        .replace(/<footer[^>]*>.*?<\/footer>/gis, '')
+        .replace(/<!--.*?-->/gs, '');
+      
+      // Extract all text content and look for article-like patterns
+      const allText = cleanHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      // Look for the main article content by finding text after the title
+      if (title && allText.includes(title)) {
+        const titleIndex = allText.indexOf(title);
+        const afterTitle = allText.substring(titleIndex + title.length);
+        
+        // Look for substantial content (more than 500 characters)
+        if (afterTitle.length > 500) {
+          // Split into sentences and take the first substantial chunk
+          const sentences = afterTitle.split(/[.!?]+/).filter(s => s.trim().length > 20);
+          if (sentences.length >= 3) {
+            // Take first 10 sentences or until we hit obvious navigation/footer content
+            const articleSentences = [];
+            for (const sentence of sentences.slice(0, 15)) {
+              const cleanSentence = sentence.trim();
+              // Stop if we hit obvious navigation or footer content
+              if (cleanSentence.toLowerCase().includes('more for you') ||
+                  cleanSentence.toLowerCase().includes('related articles') ||
+                  cleanSentence.toLowerCase().includes('subscribe') ||
+                  cleanSentence.toLowerCase().includes('newsletter') ||
+                  cleanSentence.toLowerCase().includes('follow us')) {
+                break;
+              }
+              if (cleanSentence.length > 10) {
+                articleSentences.push(cleanSentence);
+              }
+            }
+            
+            if (articleSentences.length >= 3) {
+              content = articleSentences.map(s => `<p>${s.trim()}.</p>`).join('\n');
+              console.log(`[SCRAPE API] Extracted ${articleSentences.length} sentences via aggressive fallback`);
+            }
+          }
+        }
+      }
+    }
+    
     // Clean up content - AGGRESSIVELY remove ALL website junk
     if (content) {
       // First pass - remove major structural elements
