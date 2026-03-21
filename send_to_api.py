@@ -7,7 +7,7 @@ import sys
 
 def main():
     # Get environment variables
-    api_url = "https://chainreads.pages.dev/api/telegram/update"
+    api_url = "https://chainreads.space/api/telegram/update"
     update_secret = os.environ.get('TELEGRAM_UPDATE_SECRET')
     
     if not update_secret:
